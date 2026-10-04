@@ -1338,6 +1338,27 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
             "slots": slots,
             "tiene": any(s["gente"] for s in slots),
         })
+    dias_foto = []
+    for d in dias:
+        slots = []
+        for h in horarios_del_dia(d):
+            gente = []
+            for t in turnos:
+                if t.fecha == d and t.horario == h:
+                    per = personas_map.get(t.persona_id)
+                    if per:
+                        gente.append({"turno": t, "persona": per, "mio": t.delegacion == delg})
+            slots.append({"horario": h, "etiqueta": etiqueta_horario(h), "gente": gente})
+        habilitado = dia_permitido(cfg, d, domingos, "comunicaciones")
+        hay_gente = any(s["gente"] for s in slots)
+        if not habilitado and not hay_gente:
+            continue
+        dias_foto.append({
+            "fecha": d,
+            "nombre": NOMBRES_DIA[d.weekday()],
+            "festivo": es_festivo(d) and d.weekday() < 5,
+            "slots": slots,
+        })
     dias_vista = por_dia if modo != "foto" else [x for x in por_dia if x["tiene"]]
     alertas = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).order_by(Alerta.id.desc()).all()
     request.session["n_alertas"] = len(alertas)
@@ -1345,6 +1366,7 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
     return templates.TemplateResponse(request, "programacion.html", {
         "user": user, "delg": delg, "es_fimlm": delg == "fimlm",
         "lunes": lunes, "domingo": dias[-1], "dias": dias_vista, "todos_dias": por_dia,
+        "dias_foto": dias_foto,
         "mis_cols": mis_cols, "busqueda": busqueda, "q": q,
         "fecha_sel": fecha_sel, "horario_sel": horario_sel, "modo": modo or "editar",
         "error": error, "ok": ok, "alertas": alertas, "tutorial": not request.session.get("tut_prog"),

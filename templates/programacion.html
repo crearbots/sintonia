@@ -8,6 +8,30 @@
     <script src="/static/js/theme.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+        .foto-wa { width: 100%; margin: 0 auto; background: #f8fafc; color: #0f172a; border-radius: 16px; padding: 16px; }
+        .foto-titulo { margin: 0; font-size: 22px; font-weight: 800; }
+        .foto-sub { margin: 2px 0 12px; font-size: 14px; color: #64748b; font-weight: 600; }
+        .foto-dias { display: grid; gap: 10px; }
+        .foto-dia { background: #fff; border: 2px solid #0f172a; border-radius: 12px; overflow: hidden; min-width: 0; }
+        .foto-dia h2 { margin: 0; padding: 8px 10px; background: #1e293b; color: #fff; font-size: 14px; font-weight: 700; display: flex; justify-content: space-between; gap: 6px; }
+        .foto-dia h2 span { font-weight: 600; color: #cbd5e1; font-size: 12px; }
+        .foto-dia.festivo h2 { background: #9f1239; }
+        .foto-dia.festivo h2 span { color: #fff; }
+        .foto-bloque { padding: 8px; }
+        .foto-bloque + .foto-bloque { border-top: 1px solid #e2e8f0; }
+        .foto-hora { margin: 0 0 6px; font-size: 12px; font-weight: 800; color: #475569; }
+        .foto-nombre { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; padding: 5px 6px; border-radius: 8px; font-size: 13px; font-weight: 700; line-height: 1.2; }
+        .foto-nombre .sigla { flex: 0 0 26px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; line-height: 1; border-radius: 999px; background: rgba(255,255,255,.28); }
+        .foto-nombre.com { background: #f59e0b; color: #1c1917; }
+        .foto-nombre.com .sigla { background: rgba(0,0,0,.12); }
+        .foto-nombre.pol { background: #6d28d9; color: #fff; }
+        .foto-nombre.juv { background: #15803d; color: #fff; }
+        .foto-nombre.ele { background: #ea580c; color: #fff; }
+        .foto-nombre.fim { background: #1d4ed8; color: #fff; }
+        .foto-nombre.otro { background: #e2e8f0; color: #0f172a; }
+        .foto-pendiente { margin: 0; color: #b91c1c; font-size: 13px; font-weight: 800; letter-spacing: 0.03em; }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     {% set activo = "programacion" %}
@@ -111,22 +135,33 @@
         {% endif %}
         {% if modo == 'foto' %}
         <p id="fotoMsg" class="text-sm mb-2" style="color:var(--muted)"></p>
-        <div id="foto-cuadro" class="rounded-xl shadow p-4 w-full" style="background:var(--card);color:var(--text);">
-            <p class="font-semibold mb-3">Punto de información · {{ lunes|rango_semana(domingo) }}</p>
-            <div class="grid gap-3 w-full" style="grid-template-columns: repeat({{ todos_dias|selectattr('tiene')|list|length or 1 }}, minmax(0, 1fr));">
-                {% for dia in todos_dias if dia.tiene %}
-                <div class="border rounded-lg p-3" style="border-color:var(--border);">
-                    <p class="font-semibold text-center text-sm mb-2">{{ dia.nombre }} {{ dia.fecha|fecha_dia }}</p>
-                    {% for s in dia.slots %}
-                    <p class="text-xs font-semibold mt-3 mb-1" style="color:var(--muted)">{{ s.etiqueta }}</p>
+        <div id="foto-cuadro" class="foto-wa" data-ancho="{% if dias_foto|length == 7 %}1120{% elif dias_foto|length <= 2 or dias_foto|length == 4 %}760{% else %}980{% endif %}" style="max-width:{% if dias_foto|length == 7 %}1120px{% elif dias_foto|length <= 2 or dias_foto|length == 4 %}760px{% else %}980px{% endif %}">
+            <p class="foto-titulo">Punto de información</p>
+            <p class="foto-sub">{{ lunes|rango_semana(domingo) }}</p>
+            {% set n = dias_foto|length %}
+            <div class="foto-dias" style="grid-template-columns: repeat({% if n == 7 %}12{% elif n == 5 %}6{% elif n == 4 or n == 2 %}2{% elif n <= 1 %}1{% else %}3{% endif %}, minmax(0, 1fr));">
+            {% for dia in dias_foto %}
+            <article class="foto-dia {% if dia.festivo %}festivo{% endif %}" {% if n == 5 %}style="grid-column: span 2"{% elif n == 7 %}style="grid-column: span 3"{% endif %}>
+                <h2>{{ dia.nombre }}{% if dia.festivo %} · Festivo{% endif %} <span>{{ dia.fecha|fecha_dia }}</span></h2>
+                {% for s in dia.slots %}
+                <div class="foto-bloque">
+                    <p class="foto-hora">{{ s.etiqueta }}</p>
+                    {% if s.gente %}
                     {% for g in s.gente %}
-                    <p class="text-xs rounded px-2 mb-1 text-center {% if g.turno.delegacion == 'comunicaciones' %}bg-yellow-100 text-yellow-900{% elif g.turno.delegacion == 'politica' %}bg-purple-100 text-purple-900{% elif g.turno.delegacion == 'juventudes' %}bg-green-100 text-green-900{% elif g.turno.delegacion == 'electoral' %}bg-orange-100 text-orange-900{% elif g.turno.delegacion == 'fimlm' %}bg-blue-100 text-blue-900{% else %}bg-slate-100{% endif %}" style="min-height:1.85rem;line-height:1.85rem;">{{ g.persona.nombre }}</p>
+                    {% set d = g.turno.delegacion %}
+                    <p class="foto-nombre {% if d == 'comunicaciones' %}com{% elif d == 'politica' %}pol{% elif d == 'juventudes' %}juv{% elif d == 'electoral' %}ele{% elif d == 'fimlm' %}fim{% else %}otro{% endif %}">
+                        <span class="sigla">{% if d == 'comunicaciones' %}COM{% elif d == 'politica' %}POL{% elif d == 'juventudes' %}JUV{% elif d == 'electoral' %}ELE{% elif d == 'fimlm' %}FIM{% else %}—{% endif %}</span>
+                        {{ g.persona.nombre }}
+                    </p>
                     {% endfor %}
-                    {% endfor %}
+                    {% else %}
+                    <p class="foto-pendiente">PENDIENTE</p>
+                    {% endif %}
                 </div>
                 {% endfor %}
+            </article>
+            {% endfor %}
             </div>
-            <p class="text-xs mt-4 font-medium" style="color:#334155">Azul FIMLM · Morado Política · Verde Juventudes · Naranja Electoral · Amarillo Comunicaciones</p>
         </div>
         {% else %}
         {% for dia in dias %}
@@ -178,24 +213,12 @@
       clone.style.position = "fixed";
       clone.style.left = "-12000px";
       clone.style.top = "0";
-      clone.style.width = "1080px";
-      clone.style.maxWidth = "1080px";
-      clone.style.background = "#ffffff";
-      clone.style.color = "#0f172a";
-      clone.style.padding = "24px";
-      var grilla = clone.querySelector(".grid");
-      if (grilla) grilla.style.gridTemplateColumns = grilla.style.gridTemplateColumns || "repeat(4, minmax(0, 1fr))";
-      clone.querySelectorAll("[style*='min-height']").forEach(function(el){
-        el.style.minHeight = "2rem";
-        el.style.lineHeight = "2rem";
-        el.style.marginBottom = "6px";
-      });
-      clone.querySelectorAll("p.text-xs.font-semibold, p[class*='font-semibold'][class*='text-xs']").forEach(function(el){
-        el.style.marginTop = "12px";
-        el.style.marginBottom = "6px";
-      });
+      var ancho = box.getAttribute("data-ancho") || "980";
+      clone.style.width = ancho + "px";
+      clone.style.maxWidth = ancho + "px";
+      clone.style.margin = "0";
       document.body.appendChild(clone);
-      html2canvas(clone, {backgroundColor:"#ffffff", scale: 2, windowWidth: 1280}).then(function(canvas){
+      html2canvas(clone, {backgroundColor:"#f8fafc", scale: 2, windowWidth: parseInt(ancho, 10), width: parseInt(ancho, 10)}).then(function(canvas){
         document.body.removeChild(clone);
         canvas.toBlob(function(blob){
           if (!blob) { msg.textContent = "No se pudo crear la imagen."; return; }

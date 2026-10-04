@@ -6,7 +6,7 @@ Resuelve duplicados (el celular es el identificador), compara el registro intern
 
 Contexto: se usa en campo con listados Excel y metas de instalación. El detalle de la marca del cliente no es el foco de este repo.
 
-**Demo:** [dashboard en Railway](https://sintonia-app.up.railway.app/) (pide usuario y contraseña).
+**Demo:** [dashboard en Railway](https://infomira-censo-production.up.railway.app/) (pide usuario y contraseña).
 
 Acceso restringido. No es un sitio público.
 
@@ -22,8 +22,8 @@ Acceso restringido. No es un sitio público.
 Requisito: Python 3.10+ y Git.
 
 ```bash
-git clone https://github.com/crearbots/sintonia.git
-cd sintonia
+git clone https://github.com/crearbots/censo.git
+cd censo
 git checkout master
 
 python3 -m venv env
@@ -76,7 +76,7 @@ Fuente de verdad: GitHub, rama **`master`**. Un push a `master` dispara el deplo
 
 ## Versiones
 
-Los cortes estables están en los **tags** del repo (`v1.0.0-mvp` … `v1.6.0` y siguientes). Ver [Releases / tags](https://github.com/crearbots/sintonia/tags).
+Los cortes estables están en los **tags** del repo (`v1.0.0-mvp` … `v1.6.0` y siguientes). Ver [Releases / tags](https://github.com/crearbots/censo/tags).
 
 ## Privacidad
 

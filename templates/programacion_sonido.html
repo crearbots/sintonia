@@ -14,11 +14,12 @@
         .tablero-head h2 { font-size: 18px; font-weight: 700; margin: 0; }
         .tablero-head p { margin: 0; font-size: 13px; color: #64748b; }
         .dias { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-        .dia { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        .dia { background: #fff; border: 2px solid #0f172a; border-radius: 12px; overflow: hidden; }
         .dia-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; background: #1e293b; color: #fff; }
         .dia-h strong { font-size: 14px; }
-        .dia-h span { font-size: 12px; color: #cbd5e1; }
-        .festivo { background: #b45309; color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 6px; }
+        .dia-h span { font-weight: 600; color: #cbd5e1; font-size: 12px; }
+        .dia.festivo .dia-h { background: #9f1239; }
+        .dia.festivo .dia-h span { color: #fff; }
         .slot { padding: 8px 10px; border-top: 1px solid #e2e8f0; }
         .slot + .slot { border-top: 2px solid #cbd5e1; }
         .hora { font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; }
@@ -157,10 +158,10 @@
             </div>
             <div class="dias">
                 {% for f in filas %}
-                <article class="dia">
+                <article class="dia {% if f.festivo %}festivo{% endif %}">
                     <header class="dia-h">
-                        <strong>{{ f.dia }}</strong>
-                        <span>{{ f.fecha|fecha_dia }}{% if f.festivo %} <em class="festivo">festivo</em>{% endif %}</span>
+                        <strong>{{ f.dia }}{% if f.festivo %} · Festivo{% endif %}</strong>
+                        <span>{{ f.fecha|fecha_dia }}</span>
                     </header>
                     {% for s in f.slots %}
                     <div class="slot">
