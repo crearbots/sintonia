@@ -213,7 +213,12 @@ header #theme-toggle {
   gap: 1rem;
 }
 .brand { flex: 0 0 auto; min-width: 0; }
-.brand-name { font-size: 1.15rem; font-weight: 700; color: #fff; text-decoration: none; }
+.brand-name { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 1.15rem; font-weight: 700; color: #fff; text-decoration: none; }
+.brand-logo { height: 32px; width: auto; display: block; }
+.logo-lockup { height: 52px; width: auto; max-width: 100%; margin: 0 auto; }
+.logo-lockup-dark { display: none; }
+[data-theme="dark"] .logo-lockup-light { display: none; }
+[data-theme="dark"] .logo-lockup-dark { display: block; }
 .brand-sub { margin: 0; font-size: 0.7rem; color: #bfdbfe; }
 .nav-primary {
   display: none;
