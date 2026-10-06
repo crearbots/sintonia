@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enlace de postulación - Sintonía</title>
+    {% include "_head_icons.html" %}
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% set activo = "programacion" %}
+    {% include "_nav.html" %}
+    <main class="max-w-6xl mx-auto px-3 py-6">
+        <h1 class="text-2xl font-semibold">Enlace para postularse</h1>
+        <p class="text-sm mb-4" style="color:var(--muted)">Esto no arma la semana. Sirve para copiar el mensaje y enviarlo al equipo.</p>
+        <div class="flex flex-wrap gap-2 mb-4">
+            <a href="/programacion?modo=editar" class="px-4 py-2 rounded-full text-sm font-medium bg-slate-600 text-white">Armar semana</a>
+            <a href="/programacion?modo=foto" class="px-4 py-2 rounded-full text-sm font-medium bg-slate-600 text-white">Ver para foto</a>
+            <span class="px-4 py-2 rounded-full text-sm font-medium bg-amber-500 text-slate-900">Enlace para postularse</span>
+        </div>
+        {% if ok %}<p class="mb-3 text-sm" style="color:var(--success)">{{ ok }}</p>{% endif %}
+        <section class="bg-white rounded-xl shadow p-5 mb-4">
+            <p class="font-medium mb-1">Enlace y clave</p>
+            <p class="text-sm mb-4" style="color:var(--muted)">La clave es de este mes. Si se filtra, genera otra: el enlace no cambia.</p>
+            <div class="grid gap-4 md:grid-cols-2 md:items-end">
+                <div>
+                    <p class="text-sm mb-1">Enlace</p>
+                    <a href="{{ enlace }}" target="_blank" rel="noopener" class="text-sm break-all font-medium underline">{{ enlace }}</a>
+                </div>
+                <div>
+                    <p class="text-sm mb-1">Clave del mes</p>
+                    <p class="text-3xl font-semibold tracking-widest" id="claveMes">{{ clave_mes }}</p>
+                    <button type="button" class="btn-ghost text-sm mt-2" id="btnCopiarClave">Copiar clave</button>
+                    <span id="copiadoClave" class="text-sm ml-2 hidden" style="color:var(--success)">Copiada</span>
+                </div>
+            </div>
+            <form method="post" action="/programacion/sonido/clave" class="mt-4" onsubmit="return confirm('La clave anterior deja de servir. ¿Generar otra?')">
+                <button class="btn-ghost text-sm">Generar otra clave</button>
+            </form>
+        </section>
+        <section class="bg-white rounded-xl shadow p-5">
+            <label class="font-medium" for="plantilla">Mensaje para WhatsApp</label>
+            <p class="text-sm mb-3" style="color:var(--muted)">Guárdalo para que no se pierda al salir. El enlace y la clave se actualizan solos.</p>
+            <form method="post" action="/programacion/sonido/plantilla">
+                <textarea id="plantilla" name="plantilla" class="w-full mt-1 mb-3 px-3 py-2 border rounded-md text-sm" rows="8">{{ plantilla }}</textarea>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn-primary text-sm">Guardar mensaje</button>
+                    <button type="button" class="btn-success text-sm" id="btnCopiarPlantilla">Copiar mensaje para WhatsApp</button>
+                </div>
+            </form>
+            <span id="copiadoMsg" class="text-sm mt-2 hidden" style="color:var(--success)">Copiado</span>
+        </section>
+    </main>
+<script>
+(function(){
+  var btn = document.getElementById("btnCopiarPlantilla");
+  var box = document.getElementById("plantilla");
+  var msg = document.getElementById("copiadoMsg");
+  if (!btn || !box) return;
+  btn.addEventListener("click", function(){
+    var texto = box.value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(function(){
+        msg.classList.remove("hidden");
+        setTimeout(function(){ msg.classList.add("hidden"); }, 2000);
+      });
+    } else {
+      box.select();
+      document.execCommand("copy");
+      msg.classList.remove("hidden");
+    }
+  });
+  var btnClave = document.getElementById("btnCopiarClave");
+  var clave = document.getElementById("claveMes");
+  var msgClave = document.getElementById("copiadoClave");
+  if (btnClave && clave) {
+    btnClave.addEventListener("click", function(){
+      var texto = clave.textContent.trim();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(function(){
+          msgClave.classList.remove("hidden");
+          setTimeout(function(){ msgClave.classList.add("hidden"); }, 2000);
+        });
+      }
+    });
+  }
+})();
+</script>
+    {% include "_footer.html" %}
+</body>
+</html>

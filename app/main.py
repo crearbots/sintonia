@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 from .database import engine, get_db, Base
-from .models import Usuario, Persona, Carga, DatoNacional, Turno, Alerta, ConfigPunto, DomingoPunto
+from .models import Usuario, Persona, Carga, DatoNacional, Turno, Alerta, ConfigPunto, DomingoPunto, ClaveEnlace, Postulacion, AusenciaSemana
 from .auth import (
     create_default_user,
     authenticate_user,
@@ -103,6 +103,11 @@ def on_startup():
                 conn.execute(sql_text("ALTER TABLE turnos ADD COLUMN rol VARCHAR(20)"))
                 conn.commit()
                 print("Columna turnos.rol agregada")
+            ccols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(claves_enlace)")).fetchall()]
+            if ccols and "plantilla" not in ccols:
+                conn.execute(sql_text("ALTER TABLE claves_enlace ADD COLUMN plantilla VARCHAR(2000)"))
+                conn.commit()
+                print("Columna claves_enlace.plantilla agregada")
     except Exception as e:
         print(f"Migración: {e}")
 
@@ -1264,6 +1269,33 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
         mis_cols.sort(key=lambda p: (-score_hora.get(p.id, 0), -score_anio.get(p.id, 0), (p.nombre or "").lower()))
         alertas = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).order_by(Alerta.id.desc()).all()
         request.session["n_alertas"] = len(alertas)
+        from .models import AusenciaSemana, Postulacion
+        ausencias = db.query(AusenciaSemana).filter(
+            AusenciaSemana.labor == "sonido", AusenciaSemana.semana_lunes == lunes,
+        ).all()
+        no_pueden = [personas_map.get(a.persona_id) or db.query(Persona).filter(Persona.id == a.persona_id).first() for a in ausencias]
+        no_pueden = [p for p in no_pueden if p]
+        posts = db.query(Postulacion).filter(Postulacion.labor == "sonido", Postulacion.semana_lunes == lunes).all()
+        if posts and not personas_map:
+            personas_map = {p.id: p for p in db.query(Persona).filter(Persona.id.in_({x.persona_id for x in posts})).all()}
+        por_cupo = {}
+        for p in posts:
+            por_cupo.setdefault((p.fecha, p.horario, p.rol), []).append(personas_map.get(p.persona_id))
+        postulados = []
+        for clave, gente in por_cupo.items():
+            fecha, horario, rol = clave
+            nombres = [g for g in gente if g]
+            nombres.sort(key=lambda g: (g.nombre or "").lower())
+            asignado = ocupado.get((fecha, horario, rol))
+            asignado_nom = personas_map.get(asignado.persona_id).nombre if asignado and personas_map.get(asignado.persona_id) else ""
+            postulados.append({
+                "fecha": fecha, "horario": horario, "rol": rol,
+                "etiqueta": f"{NOMBRES_DIA[fecha.weekday()]} {fecha.day:02d} · {etiqueta_horario(horario)} · {'Cámara' if rol == 'camara' else 'Sonido'}",
+                "gente": nombres,
+                "lleno": (fecha, horario, rol) in ocupado,
+                "asignado": asignado_nom,
+            })
+        postulados.sort(key=lambda x: (x["fecha"], x["horario"], x["rol"]))
         _rank, puesto = ranking_anio(db)
         return templates.TemplateResponse(request, "programacion_sonido.html", {
             "user": user, "alertas": alertas,
@@ -1273,6 +1305,7 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
             "modo": "foto" if not editando else "editar",
             "error": error, "ok": ok,
             "busqueda_vacia": bool(q.strip()) and not busqueda,
+            "no_pueden": no_pueden, "postulados": postulados,
         })
     generar_alertas_festivo(db)
     generar_alertas_domingo(db)
@@ -1311,6 +1344,17 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
         if cel:
             qq = db.query(Persona).filter((Persona.nombre.ilike(like)) | (Persona.celular == cel))
         busqueda = qq.order_by(Persona.nombre).limit(20).all()
+    ya_llenos = set()
+    if delg not in ("fimlm", "sonido"):
+        conteo_semana = {}
+        for t in turnos:
+            conteo_semana[t.persona_id] = conteo_semana.get(t.persona_id, 0) + 1
+        ya_llenos = {pid for pid, n in conteo_semana.items() if n >= 2}
+        mis_cols = [p for p in mis_cols if p.id not in ya_llenos]
+        busqueda_llena = [p for p in busqueda if p.id in ya_llenos]
+        busqueda = [p for p in busqueda if p.id not in ya_llenos]
+    else:
+        busqueda_llena = []
     cfg = obtener_config(db)
     domingos = {r.fecha for r in db.query(DomingoPunto).all()}
     apagado = punto_apagado_para(cfg, domingos, delg, dias)
@@ -1371,7 +1415,8 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
         "fecha_sel": fecha_sel, "horario_sel": horario_sel, "modo": modo or "editar",
         "error": error, "ok": ok, "alertas": alertas, "tutorial": not request.session.get("tut_prog"),
         "confirmar": confirmar, "hl": hl,
-        "busqueda_vacia": bool(q.strip()) and not busqueda,
+        "busqueda_vacia": bool(q.strip()) and not busqueda and not busqueda_llena,
+        "busqueda_llena": busqueda_llena,
         "punto_apagado": apagado,
         "puesto": puesto,
     })
@@ -1504,6 +1549,214 @@ def _sonido_ok(request: Request):
     if _delegacion(request) != "sonido":
         return None, RedirectResponse(url="/programacion", status_code=303)
     return user, None
+
+
+@app.get("/programacion/sonido/enlace", response_class=HTMLResponse)
+async def sonido_enlace(request: Request, db: Session = Depends(get_db), ok: str = ""):
+    user, redir = _sonido_ok(request)
+    if redir:
+        return redir
+    from .postulacion import clave_vigente, texto_plantilla
+    clave = clave_vigente(db, "sonido")
+    base = str(request.base_url).rstrip("/")
+    enlace = f"{base}/postular/{clave.token}"
+    plantilla = texto_plantilla(clave, enlace)
+    return templates.TemplateResponse(request, "programacion_sonido_enlace.html", {
+        "user": user, "enlace": enlace, "clave_mes": clave.clave, "plantilla": plantilla, "ok": ok,
+    })
+
+
+@app.post("/programacion/sonido/clave")
+async def sonido_regenerar_clave(request: Request, db: Session = Depends(get_db)):
+    user, redir = _sonido_ok(request)
+    if redir:
+        return redir
+    from .postulacion import regenerar_clave
+    row = regenerar_clave(db, "sonido")
+    return RedirectResponse(url=f"/programacion/sonido/enlace?ok=Clave+nueva:+{row.clave}", status_code=303)
+
+
+@app.post("/programacion/sonido/plantilla")
+async def sonido_guardar_plantilla(
+    request: Request, plantilla: str = Form(""), db: Session = Depends(get_db),
+):
+    user, redir = _sonido_ok(request)
+    if redir:
+        return redir
+    from .postulacion import clave_vigente, guardar_plantilla
+    clave = clave_vigente(db, "sonido")
+    base = str(request.base_url).rstrip("/")
+    enlace = f"{base}/postular/{clave.token}"
+    guardar_plantilla(db, plantilla, enlace, "sonido")
+    return RedirectResponse(url="/programacion/sonido/enlace?ok=Mensaje+guardado", status_code=303)
+
+
+def _enlace_sonido(db, token: str):
+    from .postulacion import clave_vigente
+    clave = clave_vigente(db, "sonido")
+    if clave.token != token:
+        return None
+    return clave
+
+
+def _postular_abierto(request: Request, token: str, clave) -> bool:
+    return request.session.get("postular") == token and request.session.get("postular_clave") == clave.clave
+
+
+@app.get("/postular/{token}", response_class=HTMLResponse)
+async def postular_ver(request: Request, token: str, db: Session = Depends(get_db), error: str = "", ok: str = "", cambiar: str = ""):
+    clave = _enlace_sonido(db, token)
+    if not clave:
+        return templates.TemplateResponse(request, "postular.html", {"invalido": True})
+    abierto = _postular_abierto(request, token, clave)
+    ctx = {"invalido": False, "token": token, "abierto": abierto, "error": error, "ok": ok, "filas": [], "mios": set(), "no_puede": False, "resumen": False, "lineas": []}
+    if abierto:
+        from .festivos import es_festivo
+        from .models import AusenciaSemana
+        lunes = semana_vigente()
+        dias = dias_semana(lunes)
+        pid = request.session.get("postular_persona") if ok and not cambiar else None
+        mios = set()
+        lineas = []
+        no_puede = False
+        if pid:
+            from .postulacion import postulaciones_persona
+            for p in postulaciones_persona(db, pid, lunes):
+                mios.add(f"{p.fecha.isoformat()}|{p.horario}|{p.rol}")
+                lineas.append(f"{NOMBRES_DIA[p.fecha.weekday()]} {p.fecha.day:02d}/{['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][p.fecha.month-1].capitalize()} · {etiqueta_horario(p.horario)} · {'Cámara' if p.rol == 'camara' else 'Sonido'}")
+            lineas.sort()
+            no_puede = db.query(AusenciaSemana).filter(
+                AusenciaSemana.persona_id == pid, AusenciaSemana.labor == "sonido", AusenciaSemana.semana_lunes == lunes,
+            ).first() is not None
+        filas = []
+        for d in dias:
+            roles = ["sonido", "camara"] if d.weekday() in (2, 6) else ["sonido"]
+            slots = []
+            for h in horarios_del_dia(d):
+                cups = []
+                for rol in roles:
+                    cups.append({
+                        "rol": rol,
+                        "rol_txt": "Cámara" if rol == "camara" else "Sonido",
+                        "valor": f"{d.isoformat()}|{h}|{rol}",
+                        "marcado": f"{d.isoformat()}|{h}|{rol}" in mios,
+                    })
+                slots.append({"etiqueta": etiqueta_horario(h), "roles": cups})
+            filas.append({
+                "dia": NOMBRES_DIA[d.weekday()],
+                "fecha": f"{d.day:02d}/{['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.month-1].capitalize()}",
+                "festivo": es_festivo(d) and d.weekday() < 5,
+                "slots": slots,
+            })
+        ctx.update({
+            "filas": filas, "mios": mios, "no_puede": no_puede,
+            "resumen": bool(ok) and not cambiar, "lineas": lineas,
+        })
+    return templates.TemplateResponse(request, "postular.html", ctx)
+
+
+@app.post("/postular/{token}/revisar")
+async def postular_revisar(
+    request: Request, token: str, db: Session = Depends(get_db),
+    celular: str = Form(""), celular2: str = Form(""),
+):
+    from .processing import normalizar_celular
+    if not _enlace_sonido(db, token) or not _postular_abierto(request, token, _enlace_sonido(db, token)):
+        return {"ok": False, "error": "Primero escribe la clave"}
+    cel = normalizar_celular(celular)
+    cel2 = normalizar_celular(celular2)
+    if not cel or cel != cel2:
+        return {"ok": False, "error": "Los dos celulares deben coincidir y tener 10 dígitos"}
+    per = db.query(Persona).filter(Persona.celular == cel).first()
+    huecos = []
+    no_puede = False
+    if per:
+        from .models import AusenciaSemana
+        from .postulacion import postulaciones_persona
+        lunes = semana_vigente()
+        huecos = [f"{p.fecha.isoformat()}|{p.horario}|{p.rol}" for p in postulaciones_persona(db, per.id, lunes)]
+        no_puede = db.query(AusenciaSemana).filter(
+            AusenciaSemana.persona_id == per.id, AusenciaSemana.labor == "sonido", AusenciaSemana.semana_lunes == lunes,
+        ).first() is not None
+    return {"ok": True, "existe": bool(per), "nombre": per.nombre if per else "", "huecos": huecos, "no_puede": no_puede}
+
+
+@app.post("/postular/{token}")
+async def postular_guardar(
+    request: Request, token: str, db: Session = Depends(get_db),
+    clave: str = Form(""), celular: str = Form(""), celular2: str = Form(""),
+    nombre: str = Form(""), no_puedo: str = Form(""),
+):
+    from .processing import normalizar_celular, normalizar_nombre
+    from .postulacion import clave_valida, aplicar_semana
+    row = _enlace_sonido(db, token)
+    if not row:
+        return RedirectResponse(url=f"/postular/{token}", status_code=303)
+    form = await request.form()
+    if form.get("paso") == "clave":
+        if not clave_valida(db, clave):
+            return RedirectResponse(url=f"/postular/{token}?error=Clave+incorrecta", status_code=303)
+        request.session["postular"] = token
+        request.session["postular_clave"] = row.clave
+        return RedirectResponse(url=f"/postular/{token}", status_code=303)
+    if form.get("paso") != "guardar":
+        return RedirectResponse(url=f"/postular/{token}?cambiar=1", status_code=303)
+    if not _postular_abierto(request, token, row):
+        return RedirectResponse(url=f"/postular/{token}?error=Primero+escribe+la+clave", status_code=303)
+    cel = normalizar_celular(celular)
+    cel2 = normalizar_celular(celular2)
+    if not cel or cel != cel2:
+        return RedirectResponse(url=f"/postular/{token}?error=Los+dos+celulares+deben+coincidir+y+tener+10+dígitos", status_code=303)
+    per = db.query(Persona).filter(Persona.celular == cel).first()
+    if not per:
+        nom = normalizar_nombre(nombre)
+        if not nom:
+            return RedirectResponse(url=f"/postular/{token}?error=No+estás+en+la+base.+Escribe+tu+nombre", status_code=303)
+        per = Persona(nombre=nom, celular=cel, estado="No instalada", pendiente_revision=False, fuente_ultima="Postulación Sonido")
+        db.add(per)
+        db.commit()
+        db.refresh(per)
+        db.add(Alerta(
+            para_delegacion="comunicaciones", tipo="alta_nueva",
+            texto=f"Persona nueva desde el enlace de Sonido: {nom} ({cel}). Revisar si ya tiene la App.",
+            leida=False,
+        ))
+        db.commit()
+    request.session["postular_persona"] = per.id
+    lunes = semana_vigente()
+    huecos = []
+    if not no_puedo:
+        from datetime import datetime as dt, timedelta as td
+        for valor in form.getlist("hueco"):
+            try:
+                f, h, rol = valor.split("|")
+                fecha = dt.strptime(f, "%Y-%m-%d").date()
+                if not (lunes <= fecha <= lunes + td(days=6)) or rol not in ("sonido", "camara"):
+                    continue
+                if h not in horarios_del_dia(fecha):
+                    continue
+                huecos.append((fecha, h, rol))
+            except ValueError:
+                continue
+    if not no_puedo and not huecos:
+        return RedirectResponse(
+            url=f"/postular/{token}?cambiar=1&error=Marca+al+menos+un+horario.+Si+no+puedes+esta+semana,+marca+esa+opción",
+            status_code=303,
+        )
+    aplicar_semana(db, per.id, lunes, huecos, bool(no_puedo))
+    if no_puedo:
+        from datetime import timedelta as td
+        tipo = f"no-puede-{lunes.isoformat()}-{per.id}"
+        ya = db.query(Alerta).filter(Alerta.para_delegacion == "sonido", Alerta.tipo == tipo).first()
+        if not ya:
+            db.add(Alerta(
+                para_delegacion="sonido", tipo=tipo,
+                texto=f"{per.nombre} avisó que no puede apoyar la semana {lunes.day:02d}/{['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][lunes.month-1].capitalize()} – {(lunes + td(days=6)).day:02d}/{['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][(lunes + td(days=6)).month-1].capitalize()}.",
+                leida=False,
+            ))
+            db.commit()
+        return RedirectResponse(url=f"/postular/{token}?ok=Quedó+registrado+que+esta+semana+no+puedes+apoyar", status_code=303)
+    return RedirectResponse(url=f"/postular/{token}?ok=Estos+son+los+horarios+que+marcaste", status_code=303)
 
 
 @app.post("/programacion/sonido/asignar")

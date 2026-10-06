@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Postulación · Sonido</title>
+    {% include "_head_icons.html" %}
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .logo-lockup { height: 42px; width: auto; margin: 0 auto 12px; display: block; }
+        html[data-theme="dark"] .logo-lockup-light { display: none; }
+        html:not([data-theme="dark"]) .logo-lockup-dark { display: none; }
+        .paso { height: 6px; border-radius: 999px; background: #cbd5e1; }
+        .paso.on { background: #2563eb; }
+        .dia { width: 100%; text-align: left; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+        .dia .cuerpo { display: none; margin-top: 10px; }
+        .dia.abierto .cuerpo { display: block; }
+        .hueco { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+        .hueco input { width: 22px; height: 22px; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <main class="max-w-xl mx-auto px-4 py-8">
+        <img src="/static/img/logo/lockup-merged-light.svg" alt="Sintonía" class="logo-lockup logo-lockup-light">
+        <img src="/static/img/logo/lockup-merged-dark.svg" alt="" class="logo-lockup logo-lockup-dark">
+        {% if invalido %}
+        <p class="alert-error mt-4">Este enlace no es válido.</p>
+        {% else %}
+        <h1 class="text-2xl font-semibold text-center">Tu postulación, en 3 pasos</h1>
+        <p class="text-sm text-center mt-1 mb-4" style="color:var(--muted)">Labor de Sonido. Nadie más ve lo que marcas.</p>
+        <div class="grid grid-cols-3 gap-2 mb-4" id="barra">
+            <div class="paso on"></div><div class="paso {% if resumen %}on{% endif %}"></div><div class="paso {% if resumen %}on{% endif %}"></div>
+        </div>
+        {% if error %}<p class="alert-error mb-3">{{ error }}</p>{% endif %}
+        {% if ok and not resumen %}<p class="mb-3 text-sm font-medium" style="color:var(--success)">{{ ok }}</p>{% endif %}
+        {% if not abierto %}
+        <form method="post" class="bg-white rounded-xl shadow p-5">
+            <p class="text-sm mb-3" style="color:var(--muted)">Paso 1. La clave que te compartieron. Si el coordinador genera otra, esta deja de servir.</p>
+            <input type="hidden" name="paso" value="clave">
+            <label class="text-sm font-medium" for="clave">Clave</label>
+            <input id="clave" name="clave" inputmode="numeric" autocomplete="off" class="w-full mt-1 mb-3 px-3 py-3 border rounded-md text-lg tracking-widest" placeholder="0000">
+            <button class="btn-primary w-full">Continuar</button>
+        </form>
+        {% elif resumen %}
+        <section class="bg-white rounded-xl shadow p-5">
+            <p class="font-medium mb-2">{{ ok }}</p>
+            {% if no_puede %}
+            <p class="text-sm">Esta semana no puedes apoyar.</p>
+            {% elif lineas %}
+            <ul class="text-sm space-y-1 mb-3">
+                {% for linea in lineas %}<li>{{ linea }}</li>{% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-sm mb-3">No marcaste horarios.</p>
+            {% endif %}
+            <a href="?cambiar=1" class="btn-ghost inline-block mt-3">Cambiar mi postulación</a>
+        </section>
+        {% else %}
+        <form method="post" id="formPostular" class="space-y-3">
+            <input type="hidden" name="paso" id="paso" value="">
+            <section class="bg-white rounded-xl shadow p-5" id="pasoCel">
+                <p class="font-medium mb-1">Tu celular</p>
+                <p class="text-sm mb-3" style="color:var(--muted)">Escríbelo dos veces para no quedar en otro número.</p>
+                <input id="celular" name="celular" inputmode="numeric" autocomplete="tel" class="w-full mb-3 px-3 py-3 border rounded-md" placeholder="3001234567">
+                <input id="celular2" name="celular2" inputmode="numeric" autocomplete="tel" class="w-full mb-3 px-3 py-3 border rounded-md" placeholder="Otra vez">
+                <p id="errCel" class="text-sm mb-2 hidden" style="color:var(--danger)"></p>
+                <button type="button" class="btn-primary w-full" id="btnCel">Continuar</button>
+            </section>
+            <section class="bg-white rounded-xl shadow p-5 hidden" id="pasoNom">
+                <p class="font-medium mb-1">Tu nombre</p>
+                <p class="text-sm mb-3" style="color:var(--muted)">Este celular no está en la base. Solo esta vez.</p>
+                <input id="nombre" name="nombre" class="w-full mb-3 px-3 py-3 border rounded-md" placeholder="Nombre y apellido">
+                <div class="flex gap-2">
+                    <button type="button" class="btn-ghost" id="atrasNom">Atrás</button>
+                    <button type="button" class="btn-primary flex-1" id="btnNom">Continuar</button>
+                </div>
+            </section>
+            <section class="hidden" id="pasoSem">
+                <label class="hueco bg-white">
+                    <input type="checkbox" name="no_puedo" value="1" {% if no_puede %}checked{% endif %} id="noPuedo">
+                    <span class="font-medium">Esta semana no puedo apoyar</span>
+                </label>
+                <div id="listaDias" class="space-y-2 mt-3">
+                    {% for f in filas %}
+                    <div class="dia">
+                        <button type="button" class="w-full flex justify-between items-center font-medium abrir">
+                            <span>{{ f.dia }} {{ f.fecha }}{% if f.festivo %} · festivo{% endif %}</span>
+                            <span class="text-sm cuenta" style="color:var(--muted)"></span>
+                        </button>
+                        <div class="cuerpo">
+                            {% for s in f.slots %}
+                            <p class="text-sm mb-2" style="color:var(--muted)">{{ s.etiqueta }}</p>
+                            {% for c in s.roles %}
+                            <label class="hueco mb-2">
+                                <input type="checkbox" name="hueco" value="{{ c.valor }}" {% if c.marcado %}checked{% endif %}>
+                                <span>{{ c.rol_txt }}</span>
+                            </label>
+                            {% endfor %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button class="btn-primary w-full mt-3" id="btnGuardar" type="button">Guardar</button>
+            </section>
+        </form>
+        {% endif %}
+        {% endif %}
+    </main>
+<script>
+(function(){
+  var barra = document.querySelectorAll("#barra .paso");
+  function marca(n){ barra.forEach(function(b,i){ b.classList.toggle("on", i <= n); }); }
+  var form = document.getElementById("formPostular");
+  form.addEventListener("submit", function(ev){
+    if (document.getElementById("paso").value !== "guardar") ev.preventDefault();
+  });
+  document.getElementById("celular").addEventListener("keydown", function(ev){
+    if (ev.key === "Enter") { ev.preventDefault(); document.getElementById("btnCel").click(); }
+  });
+  document.getElementById("celular2").addEventListener("keydown", function(ev){
+    if (ev.key === "Enter") { ev.preventDefault(); document.getElementById("btnCel").click(); }
+  });
+  document.getElementById("nombre").addEventListener("keydown", function(ev){
+    if (ev.key === "Enter") { ev.preventDefault(); document.getElementById("btnNom").click(); }
+  });
+  var pasoCel = document.getElementById("pasoCel");
+  if (!pasoCel) return;
+  var pasoNom = document.getElementById("pasoNom");
+  var pasoSem = document.getElementById("pasoSem");
+  var err = document.getElementById("errCel");
+  document.getElementById("btnCel").addEventListener("click", function(){
+    var data = new FormData();
+    data.append("celular", document.getElementById("celular").value);
+    data.append("celular2", document.getElementById("celular2").value);
+    fetch(location.pathname + "/revisar", {method:"POST", body:data}).then(function(r){ return r.json(); }).then(function(res){
+      if (!res.ok) { err.textContent = res.error || "Revisa el celular"; err.classList.remove("hidden"); return; }
+      err.classList.add("hidden");
+      document.querySelectorAll("#listaDias input[type=checkbox]").forEach(function(c){ c.checked = false; });
+      document.getElementById("noPuedo").checked = !!res.no_puede;
+      (res.huecos || []).forEach(function(valor){
+        var box = document.querySelector("#listaDias input[value='" + valor + "']");
+        if (box) box.checked = true;
+      });
+      document.querySelectorAll(".dia").forEach(function(dia){
+        var n = dia.querySelectorAll("input[type=checkbox]:checked").length;
+        var cuenta = dia.querySelector(".cuenta");
+        if (cuenta) cuenta.textContent = n ? n + (n === 1 ? " horario" : " horarios") : "";
+      });
+      document.getElementById("listaDias").style.display = res.no_puede ? "none" : "";
+      pasoCel.classList.add("hidden");
+      if (res.existe) { pasoSem.classList.remove("hidden"); marca(1); }
+      else { pasoNom.classList.remove("hidden"); marca(1); }
+    });
+  });
+  document.getElementById("btnNom").addEventListener("click", function(){
+    if (!document.getElementById("nombre").value.trim()) return;
+    pasoNom.classList.add("hidden");
+    pasoSem.classList.remove("hidden");
+    marca(1);
+  });
+  document.getElementById("atrasNom").addEventListener("click", function(){
+    pasoNom.classList.add("hidden");
+    pasoCel.classList.remove("hidden");
+    marca(0);
+  });
+  var guardar = document.getElementById("btnGuardar");
+  if (guardar) guardar.addEventListener("click", function(){
+    var noPuede = document.getElementById("noPuedo").checked;
+    var n = document.querySelectorAll("#listaDias input[type=checkbox]:checked").length;
+    if (!noPuede && !n) {
+      alert("Marca al menos un horario. Si no puedes esta semana, marca esa opción.");
+      return;
+    }
+    document.getElementById("paso").value = "guardar";
+    form.submit();
+  });
+  var no = document.getElementById("noPuedo");
+  var lista = document.getElementById("listaDias");
+  no.addEventListener("change", function(){ lista.style.display = no.checked ? "none" : ""; });
+  if (no.checked) lista.style.display = "none";
+  document.querySelectorAll(".dia").forEach(function(dia){
+    function cuenta(){
+      var n = dia.querySelectorAll("input[type=checkbox]:checked").length;
+      dia.querySelector(".cuenta").textContent = n ? n + (n === 1 ? " horario" : " horarios") : "";
+    }
+    dia.querySelector(".abrir").addEventListener("click", function(){
+      var abierto = dia.classList.contains("abierto");
+      document.querySelectorAll(".dia").forEach(function(o){ o.classList.remove("abierto"); });
+      if (!abierto) dia.classList.add("abierto");
+    });
+    dia.querySelectorAll("input[type=checkbox]").forEach(function(c){ c.addEventListener("change", cuenta); });
+    cuenta();
+  });
+})();
+</script>
+</body>
+</html>

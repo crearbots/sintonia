@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Date
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Date, UniqueConstraint
 from sqlalchemy.sql import func
 from .database import Base
 
@@ -98,3 +98,57 @@ class DomingoPunto(Base):
 
     id = Column(Integer, primary_key=True)
     fecha = Column(Date, unique=True, nullable=False)
+
+
+class ClaveEnlace(Base):
+    """Clave corta del enlace público. El enlace no cambia; la clave sí."""
+
+    __tablename__ = "claves_enlace"
+
+    id = Column(Integer, primary_key=True)
+    labor = Column(String(40), nullable=False, default="sonido")
+    mes = Column(String(7), nullable=False)
+    clave = Column(String(8), nullable=False)
+    token = Column(String(40), nullable=False)
+    plantilla = Column(String(2000), nullable=True)
+    actualizada_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (UniqueConstraint("labor", "mes", name="uq_clave_labor_mes"),)
+
+
+class Postulacion(Base):
+    """Disponibilidad. No ocupa el cupo: el turno nace cuando el coordinador confirma."""
+
+    __tablename__ = "postulaciones"
+
+    id = Column(Integer, primary_key=True)
+    persona_id = Column(Integer, nullable=False, index=True)
+    labor = Column(String(40), nullable=False, default="sonido")
+    fecha = Column(Date, nullable=False, index=True)
+    horario = Column(String(5), nullable=False)
+    rol = Column(String(20), nullable=False, default="sonido")
+    semana_lunes = Column(Date, nullable=False, index=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "persona_id", "labor", "fecha", "horario", "rol",
+            name="uq_postulacion_hueco",
+        ),
+    )
+
+
+class AusenciaSemana(Base):
+    """El colaborador avisa que esa semana no puede. No marca horarios."""
+
+    __tablename__ = "ausencias_semana"
+
+    id = Column(Integer, primary_key=True)
+    persona_id = Column(Integer, nullable=False, index=True)
+    labor = Column(String(40), nullable=False, default="sonido")
+    semana_lunes = Column(Date, nullable=False, index=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("persona_id", "labor", "semana_lunes", name="uq_ausencia_semana"),
+    )

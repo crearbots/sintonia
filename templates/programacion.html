@@ -121,6 +121,9 @@
                 <button class="btn-ghost w-full text-left">{{ p.nombre }}</button>
             </form>
             {% endfor %}
+            {% if busqueda_llena %}
+            <p class="text-sm mt-2" style="color:var(--muted)">Ya tienen los 2 turnos de esta semana: {% for p in busqueda_llena %}{{ p.nombre }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>
+            {% endif %}
             {% if busqueda_vacia %}
             <p class="text-sm mt-3 mb-2 font-medium text-amber-700">No está en la base. Escríbela aquí para crearla y asignarla.</p>
             <form method="post" action="/programacion/alta" class="grid sm:grid-cols-3 gap-2">
