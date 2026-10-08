@@ -19,9 +19,14 @@
         .dia.abierto .cuerpo { display: block; }
         .hueco { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
         .hueco input { width: 22px; height: 22px; }
+        body.postular { padding-bottom: 0; display: flex; flex-direction: column; min-height: 100vh; }
+        body.postular main { width: 100%; max-width: 32rem; margin: 0 auto; flex: 1; }
+        @media (min-width: 768px) {
+            body.postular main { padding-top: 3rem; padding-bottom: 2rem; }
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100 min-h-screen postular">
     <main class="max-w-xl mx-auto px-4 py-8">
         <img src="/static/img/logo/lockup-merged-light.svg" alt="Sintonía" class="logo-lockup logo-lockup-light">
         <img src="/static/img/logo/lockup-merged-dark.svg" alt="" class="logo-lockup logo-lockup-dark">
@@ -29,7 +34,7 @@
         <p class="alert-error mt-4">Este enlace no es válido.</p>
         {% else %}
         <h1 class="text-2xl font-semibold text-center">Tu postulación, en 3 pasos</h1>
-        <p class="text-sm text-center mt-1 mb-4" style="color:var(--muted)">Labor de Sonido. Nadie más ve lo que marcas.</p>
+        <p class="text-sm text-center mt-1 mb-4" style="color:var(--muted)">Labor de Sonido</p>
         <div class="grid grid-cols-3 gap-2 mb-4" id="barra">
             <div class="paso on"></div><div class="paso {% if resumen %}on{% endif %}"></div><div class="paso {% if resumen %}on{% endif %}"></div>
         </div>
@@ -37,7 +42,7 @@
         {% if ok and not resumen %}<p class="mb-3 text-sm font-medium" style="color:var(--success)">{{ ok }}</p>{% endif %}
         {% if not abierto %}
         <form method="post" class="bg-white rounded-xl shadow p-5">
-            <p class="text-sm mb-3" style="color:var(--muted)">Paso 1. La clave que te compartieron. Si el coordinador genera otra, esta deja de servir.</p>
+            <p class="text-sm mb-3" style="color:var(--muted)">Ingresa la clave que te compartieron. Si el coordinador genera otra, esta deja de servir.</p>
             <input type="hidden" name="paso" value="clave">
             <label class="text-sm font-medium" for="clave">Clave</label>
             <input id="clave" name="clave" inputmode="numeric" autocomplete="off" class="w-full mt-1 mb-3 px-3 py-3 border rounded-md text-lg tracking-widest" placeholder="0000">
@@ -46,7 +51,22 @@
         {% elif resumen %}
         <section class="bg-white rounded-xl shadow p-5">
             <p class="font-medium mb-2">{{ ok }}</p>
-            {% if no_puede %}
+            {% if cambio_antes is not none %}
+            <p class="text-sm font-medium mt-2">Antes</p>
+            {% if cambio_antes %}
+            <ul class="text-sm space-y-1 mb-3">{% for linea in cambio_antes %}<li>{{ linea }}</li>{% endfor %}</ul>
+            {% else %}
+            <p class="text-sm mb-3">No tenías horarios.</p>
+            {% endif %}
+            <p class="text-sm font-medium">Ahora</p>
+            {% if cambio_no_puede %}
+            <p class="text-sm mb-3">Esta semana no puedes apoyar.</p>
+            {% elif cambio_ahora %}
+            <ul class="text-sm space-y-1 mb-3">{% for linea in cambio_ahora %}<li>{{ linea }}</li>{% endfor %}</ul>
+            {% else %}
+            <p class="text-sm mb-3">No marcaste horarios.</p>
+            {% endif %}
+            {% elif no_puede %}
             <p class="text-sm">Esta semana no puedes apoyar.</p>
             {% elif lineas %}
             <ul class="text-sm space-y-1 mb-3">
@@ -87,7 +107,7 @@
                     <div class="dia">
                         <button type="button" class="w-full flex justify-between items-center font-medium abrir">
                             <span>{{ f.dia }} {{ f.fecha }}{% if f.festivo %} · festivo{% endif %}</span>
-                            <span class="text-sm cuenta" style="color:var(--muted)"></span>
+                            <span class="text-sm">{% if f.libre %}<span style="color:#d97706;font-weight:700">Libre</span>{% endif %} <span class="cuenta" style="color:var(--muted)"></span></span>
                         </button>
                         <div class="cuerpo">
                             {% for s in f.slots %}
@@ -95,7 +115,7 @@
                             {% for c in s.roles %}
                             <label class="hueco mb-2">
                                 <input type="checkbox" name="hueco" value="{{ c.valor }}" {% if c.marcado %}checked{% endif %}>
-                                <span>{{ c.rol_txt }}</span>
+                                <span>{{ c.rol_txt }}{% if c.libre %} · <span style="color:#d97706;font-weight:600">Libre</span>{% endif %}</span>
                             </label>
                             {% endfor %}
                             {% endfor %}
@@ -139,17 +159,8 @@
       if (!res.ok) { err.textContent = res.error || "Revisa el celular"; err.classList.remove("hidden"); return; }
       err.classList.add("hidden");
       document.querySelectorAll("#listaDias input[type=checkbox]").forEach(function(c){ c.checked = false; });
-      document.getElementById("noPuedo").checked = !!res.no_puede;
-      (res.huecos || []).forEach(function(valor){
-        var box = document.querySelector("#listaDias input[value='" + valor + "']");
-        if (box) box.checked = true;
-      });
-      document.querySelectorAll(".dia").forEach(function(dia){
-        var n = dia.querySelectorAll("input[type=checkbox]:checked").length;
-        var cuenta = dia.querySelector(".cuenta");
-        if (cuenta) cuenta.textContent = n ? n + (n === 1 ? " horario" : " horarios") : "";
-      });
-      document.getElementById("listaDias").style.display = res.no_puede ? "none" : "";
+      document.getElementById("noPuedo").checked = false;
+      document.getElementById("listaDias").style.display = "";
       pasoCel.classList.add("hidden");
       if (res.existe) { pasoSem.classList.remove("hidden"); marca(1); }
       else { pasoNom.classList.remove("hidden"); marca(1); }
@@ -196,5 +207,6 @@
   });
 })();
 </script>
+{% include "_footer.html" %}
 </body>
 </html>

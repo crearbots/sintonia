@@ -130,6 +130,17 @@ def postulaciones_persona(db: Session, persona_id: int, lunes: date, labor: str 
     ).all()
 
 
+def tiene_semana(db: Session, persona_id: int, lunes: date, labor: str = "sonido") -> bool:
+    from .models import AusenciaSemana
+    if postulaciones_persona(db, persona_id, lunes, labor):
+        return True
+    return db.query(AusenciaSemana).filter(
+        AusenciaSemana.persona_id == persona_id,
+        AusenciaSemana.labor == labor,
+        AusenciaSemana.semana_lunes == lunes,
+    ).first() is not None
+
+
 def aplicar_semana(
     db: Session, persona_id: int, lunes: date, huecos: list[tuple[date, str, str]],
     no_puede: bool, labor: str = "sonido",

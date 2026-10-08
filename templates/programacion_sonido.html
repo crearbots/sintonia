@@ -46,14 +46,13 @@
         <div class="flex flex-wrap gap-2 mb-4">
             <a href="/programacion?modo=editar" class="px-4 py-2 rounded-full text-sm font-medium {% if modo != 'foto' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Armar semana</a>
             <a href="/programacion?modo=foto" class="px-4 py-2 rounded-full text-sm font-medium {% if modo == 'foto' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Ver para foto</a>
-            <a href="/programacion/sonido/enlace" class="px-4 py-2 rounded-full text-sm font-medium bg-slate-600 text-white">Enlace para postularse</a>
             {% if modo == 'foto' %}
             <button type="button" id="btnCopiarFoto" class="btn-success text-sm">Copiar imagen para WhatsApp</button>
             {% else %}
             <button type="button" onclick="document.getElementById('guia').classList.remove('hidden')" class="btn-ghost text-sm">¿Cómo hago la programación?</button>
             {% endif %}
         </div>
-        <p class="text-sm mb-4">{% if modo == 'foto' %}Esta vista es para la captura. Tocar un cupo no cambia nada.{% else %}Estás armando la semana. Toca + Agregar en un horario vacío.{% endif %}</p>
+        <p class="text-sm mb-4">{% if modo == 'foto' %}Esta vista es para la captura. Tocar un cupo no cambia nada.{% else %}Estás armando la semana a mano. Toca + Agregar en un horario vacío. Las postulaciones del enlace se confirman en Postulaciones.{% endif %}</p>
         {% if modo != 'foto' %}
         <div id="guia" class="hidden bg-white rounded-xl shadow p-4 mb-4">
             <p class="font-medium mb-2">Cómo programar (3 pasos)</p>
@@ -67,36 +66,6 @@
         </div>
         {% endif %}
         {% if error %}<p class="alert-error mb-3">{{ error }}</p>{% endif %}
-        {% if ok %}<p class="mb-3 text-sm" style="color:var(--success)">{{ ok }}</p>{% endif %}
-        {% if modo != 'foto' %}
-        <section class="bg-white rounded-xl shadow p-4 mb-4">
-            <p class="font-medium mb-2">Por confirmar</p>
-            {% set abiertos = postulados | selectattr('lleno', 'equalto', false) | list %}
-            {% if abiertos %}
-            <div class="space-y-3">
-                {% for grupo in abiertos %}
-                <div>
-                    <p class="text-sm font-medium">{{ grupo.etiqueta }}</p>
-                    <div class="flex flex-wrap gap-2 mt-1">
-                        {% for p in grupo.gente %}
-                        <form method="post" action="/programacion/sonido/asignar">
-                            <input type="hidden" name="modo" value="editar">
-                            <input type="hidden" name="persona_id" value="{{ p.id }}">
-                            <input type="hidden" name="fecha" value="{{ grupo.fecha.isoformat() }}">
-                            <input type="hidden" name="horario" value="{{ grupo.horario }}">
-                            <input type="hidden" name="rol" value="{{ grupo.rol }}">
-                            <button class="{% if grupo.rol == 'camara' %}px-3 py-2 rounded-lg text-sm bg-amber-500 text-slate-900{% else %}btn-primary text-sm{% endif %}">{{ p.nombre }} · Confirmar</button>
-                        </form>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="text-sm" style="color:var(--muted)">No hay postulaciones pendientes. Los cupos llenos se ven en Ver para foto.</p>
-            {% endif %}
-        </section>
-        {% endif %}
         {% if modo != 'foto' and fecha_sel and horario_sel and rol_sel %}
         <div class="bg-white rounded-xl shadow p-4 mb-4 border-2 border-amber-400">
             <p class="font-medium mb-2">Estás llenando: {{ fecha_sel }} · {{ horario_sel }} · {{ 'Cámara' if rol_sel == 'camara' else 'Sonido' }}</p>

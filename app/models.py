@@ -138,6 +138,21 @@ class Postulacion(Base):
     )
 
 
+class CambioPostulacion(Base):
+    """Segundo envío. No pisa la vigente hasta que el coordinador acepte."""
+
+    __tablename__ = "cambios_postulacion"
+
+    id = Column(Integer, primary_key=True)
+    persona_id = Column(Integer, nullable=False, index=True)
+    labor = Column(String(40), nullable=False, default="sonido")
+    semana_lunes = Column(Date, nullable=False, index=True)
+    no_puede = Column(Boolean, default=False, nullable=False)
+    detalle = Column(String(2000), nullable=False, default="")
+    estado = Column(String(20), nullable=False, default="pendiente")
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class AusenciaSemana(Base):
     """El colaborador avisa que esa semana no puede. No marca horarios."""
 

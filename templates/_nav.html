@@ -1,5 +1,6 @@
 {% set delg = request.session.get('delegacion', 'comunicaciones') %}
 {% set es_com = delg == 'comunicaciones' %}
+{% set es_sonido = delg == 'sonido' %}
 <header class="site-header">
     <div class="header-inner">
         <div class="brand">
@@ -10,6 +11,9 @@
         <nav class="nav-primary" aria-label="Principal">
             <a href="/dashboard" class="nav-link {% if activo == 'inicio' %}is-active{% endif %}">Inicio</a>
             <a href="/programacion" class="nav-link {% if activo == 'programacion' %}is-active{% endif %}">Programación</a>
+            {% if es_sonido %}
+            <a href="/postulaciones" class="nav-link {% if activo == 'postulaciones' %}is-active{% endif %}">Postulaciones</a>
+            {% endif %}
             {% if es_com %}
             <a href="/personas" class="nav-link {% if activo == 'personas' %}is-active{% endif %}">Personas</a>
             <a href="/config-punto" class="nav-link {% if activo == 'config' %}is-active{% endif %}">Calendario</a>
@@ -35,6 +39,12 @@
         <span class="bottom-ico">📅</span>
         <span>Programación</span>
     </a>
+    {% if es_sonido %}
+    <a href="/postulaciones" class="bottom-item {% if activo == 'postulaciones' %}is-active{% endif %}">
+        <span class="bottom-ico">✋</span>
+        <span>Postulaciones</span>
+    </a>
+    {% endif %}
     {% if es_com %}
     <a href="/personas" class="bottom-item {% if activo == 'personas' %}is-active{% endif %}">
         <span class="bottom-ico">👥</span>

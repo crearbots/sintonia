@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Postulaciones - Sintonía</title>
+    {% include "_head_icons.html" %}
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .grupo { transition: opacity .25s ease, transform .25s ease; }
+        .grupo.sale { opacity: 0; transform: scale(.98); pointer-events: none; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% set activo = "postulaciones" %}
+    {% include "_nav.html" %}
+    <main class="max-w-6xl mx-auto px-3 py-6">
+        <h1 class="text-2xl font-semibold">Postulaciones</h1>
+        <p class="text-sm mb-3" style="color:var(--muted)">Semana {{ lunes|rango_semana(domingo) }}. Confirmar aquí no impide armar a mano.</p>
+        <div class="flex flex-wrap gap-2 mb-4">
+            <a href="/postulaciones?modo=link" class="px-4 py-2 rounded-full text-sm font-medium {% if modo == 'link' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Enlace</a>
+            <a href="/postulaciones?modo=confirmar" class="px-4 py-2 rounded-full text-sm font-medium {% if modo != 'link' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Confirmar</a>
+        </div>
+        {% if error %}<p class="alert-error mb-3">{{ error }}</p>{% endif %}
+        {% if ok %}<p class="mb-3 text-sm" style="color:var(--success)">{{ ok }}</p>{% endif %}
+
+        {% if modo == 'link' %}
+        <section class="bg-white rounded-xl shadow p-5 mb-4">
+            <p class="font-medium mb-1">Enlace para postularse</p>
+            <p class="text-sm mb-4" style="color:var(--muted)">Esto no arma la semana. Copia el mensaje y envíalo al equipo.</p>
+            <div class="grid gap-4 md:grid-cols-2 md:items-end">
+                <div>
+                    <p class="text-sm mb-1">Enlace</p>
+                    <a href="{{ enlace }}" target="_blank" rel="noopener" class="text-sm break-all font-medium underline">{{ enlace }}</a>
+                </div>
+                <div>
+                    <p class="text-sm mb-1">Clave del mes</p>
+                    <p class="text-3xl font-semibold tracking-widest" id="claveMes">{{ clave_mes }}</p>
+                    <button type="button" class="btn-ghost text-sm mt-2" id="btnCopiarClave">Copiar clave</button>
+                    <span id="copiadoClave" class="text-sm ml-2 hidden" style="color:var(--success)">Copiada</span>
+                </div>
+            </div>
+            <form method="post" action="/programacion/sonido/clave" class="mt-4" onsubmit="return confirm('La clave anterior deja de servir. ¿Generar otra?')">
+                <button class="btn-ghost text-sm">Generar otra clave</button>
+            </form>
+        </section>
+        <section class="bg-white rounded-xl shadow p-5 mb-4">
+            <label class="font-medium" for="plantilla">Mensaje para WhatsApp</label>
+            <p class="text-sm mb-3" style="color:var(--muted)">Guárdalo para que no se pierda al salir. El enlace y la clave se actualizan solos.</p>
+            <form method="post" action="/programacion/sonido/plantilla">
+                <textarea id="plantilla" name="plantilla" class="w-full mt-1 mb-3 px-3 py-2 border rounded-md text-sm" rows="8">{{ plantilla }}</textarea>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn-primary text-sm">Guardar mensaje</button>
+                    <button type="button" class="btn-success text-sm" id="btnCopiarPlantilla">Copiar mensaje para WhatsApp</button>
+                </div>
+            </form>
+            <span id="copiadoMsg" class="text-sm mt-2 hidden" style="color:var(--success)">Copiado</span>
+        </section>
+        {% else %}
+        <section class="bg-white rounded-xl shadow p-5 mb-4">
+            <p class="font-medium mb-2">Por confirmar</p>
+            <p class="text-sm mb-3" style="color:var(--muted)">Un clic confirma a esa persona y cierra ese horario. Los demás de esa hora se ocultan. Si liberas el cupo en Armar semana, vuelven a salir aquí.</p>
+            <p id="avisoConfirmar" class="alert-error hidden"></p>
+            {% set abiertos = postulados | selectattr('lleno', 'equalto', false) | list %}
+            <div id="listaConfirmar" class="space-y-3">
+            {% if abiertos %}
+                {% for grupo in abiertos %}
+                <div class="grupo">
+                    <p class="text-sm font-medium">{{ grupo.etiqueta }}</p>
+                    <div class="flex flex-wrap gap-2 mt-1">
+                        {% for p in grupo.gente %}
+                        <form method="post" action="/programacion/sonido/asignar" class="js-confirmar">
+                            <input type="hidden" name="modo" value="editar">
+                            <input type="hidden" name="origen" value="postulaciones">
+                            <input type="hidden" name="ajax" value="1">
+                            <input type="hidden" name="persona_id" value="{{ p.id }}">
+                            <input type="hidden" name="fecha" value="{{ grupo.fecha.isoformat() }}">
+                            <input type="hidden" name="horario" value="{{ grupo.horario }}">
+                            <input type="hidden" name="rol" value="{{ grupo.rol }}">
+                            <button class="{% if grupo.rol == 'camara' %}px-3 py-2 rounded-lg text-sm bg-amber-500 text-slate-900{% else %}btn-primary text-sm{% endif %}">{{ p.nombre }} · Confirmar</button>
+                        </form>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <p class="text-sm vacio" style="color:var(--muted)">No hay postulaciones pendientes.</p>
+            {% endif %}
+            </div>
+            <p class="font-medium mt-4 mb-2">No pueden esta semana</p>
+            {% if no_pueden %}
+            <p class="text-sm">{% for p in no_pueden %}{{ p.nombre }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+            {% else %}
+            <p class="text-sm" style="color:var(--muted)">Nadie avisó que no puede.</p>
+            {% endif %}
+        </section>
+        {% endif %}
+    </main>
+<script>
+(function(){
+  var btn = document.getElementById("btnCopiarPlantilla");
+  var box = document.getElementById("plantilla");
+  var msg = document.getElementById("copiadoMsg");
+  if (btn && box) {
+    btn.addEventListener("click", function(){
+      var texto = box.value;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(function(){
+          msg.classList.remove("hidden");
+          setTimeout(function(){ msg.classList.add("hidden"); }, 2000);
+        });
+      }
+    });
+  }
+  var btnClave = document.getElementById("btnCopiarClave");
+  var clave = document.getElementById("claveMes");
+  var msgClave = document.getElementById("copiadoClave");
+  if (btnClave && clave) {
+    btnClave.addEventListener("click", function(){
+      var texto = clave.textContent.trim();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(function(){
+          msgClave.classList.remove("hidden");
+          setTimeout(function(){ msgClave.classList.add("hidden"); }, 2000);
+        });
+      }
+    });
+  }
+  var aviso = document.getElementById("avisoConfirmar");
+  document.querySelectorAll(".js-confirmar").forEach(function(form){
+    form.addEventListener("submit", function(ev){
+      ev.preventDefault();
+      if (aviso) aviso.classList.add("hidden");
+      var boton = form.querySelector("button");
+      if (boton) boton.disabled = true;
+      fetch(form.action, {method: "POST", body: new FormData(form), headers: {"Accept": "application/json"}})
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (!res.ok) {
+            if (boton) boton.disabled = false;
+            if (aviso) { aviso.textContent = res.error || "No se pudo confirmar"; aviso.classList.remove("hidden"); }
+            return;
+          }
+          var grupo = form.closest(".grupo");
+          if (grupo) {
+            grupo.querySelectorAll("button").forEach(function(b){ b.disabled = true; });
+            grupo.classList.add("sale");
+          }
+          setTimeout(function(){
+            if (grupo) grupo.remove();
+            else form.remove();
+            var lista = document.getElementById("listaConfirmar");
+            if (lista && !lista.querySelector(".grupo") && !lista.querySelector(".vacio")) {
+              var p = document.createElement("p");
+              p.className = "text-sm vacio";
+              p.style.color = "var(--muted)";
+              p.textContent = "No hay postulaciones pendientes.";
+              lista.appendChild(p);
+            }
+          }, 250);
+        })
+        .catch(function(){
+          if (boton) boton.disabled = false;
+          if (aviso) { aviso.textContent = "No se pudo confirmar. Intenta de nuevo."; aviso.classList.remove("hidden"); }
+        });
+    });
+  });
+})();
+</script>
+    {% include "_footer.html" %}
+</body>
+</html>
