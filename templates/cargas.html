@@ -29,7 +29,7 @@
                     <p class="text-sm font-medium text-gray-800">{{ c.nombre_archivo }}</p>
                     <p class="text-xs text-gray-500 mt-1">
                         {% if c.fecha_carga %}{{ c.fecha_carga.strftime("%d/%m/%Y %H:%M") }}{% else %}—{% endif %}
-                        · {{ c.fuente }}
+                        · {{ c.fuente|fuente }}
                     </p>
                     <p class="text-xs text-gray-500">{{ c.cargado_por or "—" }}</p>
                     <p class="text-sm mt-2">
@@ -71,7 +71,7 @@
                             <td class="px-4 py-2 text-gray-800 max-w-xs truncate" title="{{ c.nombre_archivo }}">
                                 {{ c.nombre_archivo }}
                             </td>
-                            <td class="px-4 py-2 text-gray-600">{{ c.fuente }}</td>
+                            <td class="px-4 py-2 text-gray-600">{{ c.fuente|fuente }}</td>
                             <td class="px-4 py-2 text-gray-600">{{ c.cargado_por or "—" }}</td>
                             <td class="px-4 py-2 text-right text-gray-600">{{ c.total_registros }}</td>
                             <td class="px-4 py-2 text-right text-green-700 font-medium">{{ c.nuevos }}</td>

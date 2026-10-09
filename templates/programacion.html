@@ -22,7 +22,13 @@
         .foto-bloque { padding: 8px; }
         .foto-bloque + .foto-bloque { border-top: 1px solid #e2e8f0; }
         .foto-hora { margin: 0 0 6px; font-size: 12px; font-weight: 800; color: #475569; }
-        .foto-nombre { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; padding: 5px 6px; border-radius: 8px; font-size: 13px; font-weight: 700; line-height: 1.2; }
+        .foto-nombre { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; padding: 5px 6px; border-radius: 8px; font-size: 13px; font-weight: 700; line-height: 1.2; min-width: 0; }
+        .foto-nombre .quien { min-width: 0; }
+        @media (max-width: 700px) {
+            .foto-dias { grid-template-columns: 1fr !important; }
+            .foto-dia { grid-column: auto !important; }
+            .foto-nombre { font-size: 15px; padding: 8px 10px; }
+        }
         .foto-nombre .sigla { flex: 0 0 26px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; line-height: 1; border-radius: 999px; background: rgba(255,255,255,.28); }
         .foto-nombre.com { background: #f59e0b; color: #1c1917; }
         .foto-nombre.com .sigla { background: rgba(0,0,0,.12); }
@@ -155,7 +161,7 @@
                     {% set d = g.turno.delegacion %}
                     <p class="foto-nombre {% if d == 'comunicaciones' %}com{% elif d == 'politica' %}pol{% elif d == 'juventudes' %}juv{% elif d == 'electoral' %}ele{% elif d == 'fimlm' %}fim{% else %}otro{% endif %}">
                         <span class="sigla">{% if d == 'comunicaciones' %}COM{% elif d == 'politica' %}POL{% elif d == 'juventudes' %}JUV{% elif d == 'electoral' %}ELE{% elif d == 'fimlm' %}FIM{% else %}—{% endif %}</span>
-                        {{ g.persona.nombre }}
+                        <span class="quien">{{ g.persona.nombre }}</span>
                     </p>
                     {% endfor %}
                     {% else %}
@@ -221,6 +227,11 @@
       clone.style.width = ancho + "px";
       clone.style.maxWidth = ancho + "px";
       clone.style.margin = "0";
+      var dias = clone.querySelector(".foto-dias");
+      if (dias) dias.style.setProperty("grid-template-columns", dias.style.gridTemplateColumns, "important");
+      clone.querySelectorAll(".foto-dia").forEach(function(dia){
+        if (dia.getAttribute("style")) dia.style.setProperty("grid-column", dia.style.gridColumn || "auto", "important");
+      });
       document.body.appendChild(clone);
       html2canvas(clone, {backgroundColor:"#f8fafc", scale: 2, windowWidth: parseInt(ancho, 10), width: parseInt(ancho, 10)}).then(function(canvas){
         document.body.removeChild(clone);

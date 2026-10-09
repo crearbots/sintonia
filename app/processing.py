@@ -14,9 +14,16 @@ from .models import Persona, Carga
 
 
 FUENTES_VALIDAS = [
-    "Listado de reunión presencial",
-    "Censo virtual"
+    "Listado presencial/Punto de información",
+    "Censo virtual",
 ]
+FUENTE_PRESENCIAL_ANTERIOR = "Listado de reunión presencial"
+
+
+def nombre_fuente(valor: str | None) -> str:
+    if valor == FUENTE_PRESENCIAL_ANTERIOR:
+        return FUENTES_VALIDAS[0]
+    return valor or ""
 
 EQUIPOS_CARGA = [
     "Coordinación",

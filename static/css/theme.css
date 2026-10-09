@@ -61,7 +61,8 @@ html, body {
   font-family: var(--font);
   font-size: 16px;
 }
-body { min-height: 100vh; }
+body { min-height: 100dvh; display: flex; flex-direction: column; }
+body > main { flex: 1 0 auto; width: 100%; }
 .text-xs { font-size: 12px; line-height: 1.4; }
 
 .card {
@@ -300,7 +301,8 @@ header #theme-toggle {
   text-align: center;
   font-size: 0.75rem;
   color: var(--muted);
-  padding: 1.5rem 0.75rem;
+  padding: 1rem 0.75rem 1.25rem;
+  margin-top: auto;
 }
 .theme-fab {
   position: absolute;
@@ -348,7 +350,8 @@ header #theme-toggle {
   }
   .bottom-item.is-active { color: #fff; font-weight: 700; }
   .bottom-ico { font-size: 18px; line-height: 1; }
-  body { padding-bottom: 4.25rem; }
+  body { padding-bottom: calc(4.25rem + env(safe-area-inset-bottom)); }
+  body.postular, body.login-page { padding-bottom: 0; }
 }
 
 .empty-state {

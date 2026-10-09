@@ -137,7 +137,7 @@
                                 <span class="text-gray-300">—</span>
                                 {% endif %}
                             </td>
-                            <td class="px-4 py-2 text-gray-600">{{ p.fuente_ultima or "—" }}</td>
+                            <td class="px-4 py-2 text-gray-600">{{ p.fuente_ultima|fuente or "—" }}</td>
                             <td class="px-4 py-2 text-gray-600">
                                 {% if p.fecha_listado %}{{ p.fecha_listado.strftime("%d/%m/%Y") }}{% else %}—{% endif %}
                             </td>

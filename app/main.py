@@ -23,7 +23,7 @@ from .auth import (
 )
 from .punto import semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario, NOMBRES_DIA, obtener_config, dia_permitido, punto_apagado_para, generar_alertas_festivo, generar_alertas_domingo, ranking_anio
 from .festivos import es_festivo
-from .processing import procesar_excel, FUENTES_VALIDAS, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
+from .processing import procesar_excel, FUENTES_VALIDAS, FUENTE_PRESENCIAL_ANTERIOR, nombre_fuente, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
 
 # Ruta base del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -52,7 +52,7 @@ jinja_env = Environment(
     cache_size=0
 )
 # Asegurar filtro tojson
-jinja_env.filters["tojson"] = lambda v: htmlsafe_json_dumps(v)
+jinja_env.filters["fuente"] = nombre_fuente
 _MESES = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
 
 def _fecha_dia(d):
@@ -314,7 +314,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         cargas_dia = [
             {
                 "archivo": c.nombre_archivo,
-                "fuente": c.fuente,
+                "fuente": nombre_fuente(c.fuente),
                 "nuevos": c.nuevos or 0,
                 "equipo": c.cargado_por or "",
             }
@@ -665,7 +665,8 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
     for c in cargas_semana:
         if not c.fuente:
             continue
-        desglose[c.fuente] = desglose.get(c.fuente, 0) + (c.nuevos or 0)
+        clave = nombre_fuente(c.fuente)
+        desglose[clave] = desglose.get(clave, 0) + (c.nuevos or 0)
     # Quitar fuentes en cero para no ensuciar el mensaje
     desglose = {f: n for f, n in desglose.items() if n > 0}
 
@@ -1084,7 +1085,10 @@ async def listar_personas(
             query = query.filter(Persona.nombre.ilike(like))
 
     if fuente and fuente in FUENTES_VALIDAS:
-        query = query.filter(Persona.fuente_ultima == fuente)
+        valores = [fuente]
+        if fuente == FUENTES_VALIDAS[0]:
+            valores.append(FUENTE_PRESENCIAL_ANTERIOR)
+        query = query.filter(Persona.fuente_ultima.in_(valores))
 
     if fecha_desde:
         try:
@@ -1581,13 +1585,25 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
     for p in posts:
         por_cupo.setdefault((p.fecha, p.horario, p.rol), []).append(personas.get(p.persona_id))
     postulados = []
+    conteo = {}
+    for turno in db.query(Turno).filter(Turno.semana_lunes == lunes).all():
+        conteo[turno.persona_id] = conteo.get(turno.persona_id, 0) + 1
     for (fecha, horario, rol), gente in por_cupo.items():
         nombres = [g for g in gente if g]
-        nombres.sort(key=lambda g: (g.nombre or "").lower())
+        items = [{"id": g.id, "nombre": g.nombre, "turnos": conteo.get(g.id, 0), "sugerido": False, "mostrar_carga": False} for g in nombres]
+        if len(items) > 1:
+            menor = min(x["turnos"] for x in items)
+            hay_unico = sum(1 for x in items if x["turnos"] == menor) == 1
+            for x in items:
+                x["mostrar_carga"] = True
+                x["sugerido"] = hay_unico and x["turnos"] == menor
+            items.sort(key=lambda x: (x["turnos"], (x["nombre"] or "").lower()))
+        else:
+            items.sort(key=lambda x: (x["nombre"] or "").lower())
         postulados.append({
             "fecha": fecha, "horario": horario, "rol": rol,
             "etiqueta": f"{NOMBRES_DIA[fecha.weekday()]} {fecha.day:02d} · {etiqueta_horario(horario)} · {'Cámara' if rol == 'camara' else 'Sonido'}",
-            "gente": nombres,
+            "gente": items,
             "lleno": (fecha, horario, rol) in ocupado,
         })
     postulados.sort(key=lambda x: (x["fecha"], x["horario"], x["rol"]))

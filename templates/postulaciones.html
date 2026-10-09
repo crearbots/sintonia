@@ -71,7 +71,7 @@
                     <p class="text-sm font-medium">{{ grupo.etiqueta }}</p>
                     <div class="flex flex-wrap gap-2 mt-1">
                         {% for p in grupo.gente %}
-                        <form method="post" action="/programacion/sonido/asignar" class="js-confirmar">
+                        <form method="post" action="/programacion/sonido/asignar" class="js-confirmar" data-persona="{{ p.id }}" data-nombre="{{ p.nombre }}" data-turnos="{{ p.turnos }}" data-comparar="{{ 1 if p.mostrar_carga else 0 }}">
                             <input type="hidden" name="modo" value="editar">
                             <input type="hidden" name="origen" value="postulaciones">
                             <input type="hidden" name="ajax" value="1">
@@ -79,7 +79,7 @@
                             <input type="hidden" name="fecha" value="{{ grupo.fecha.isoformat() }}">
                             <input type="hidden" name="horario" value="{{ grupo.horario }}">
                             <input type="hidden" name="rol" value="{{ grupo.rol }}">
-                            <button class="{% if grupo.rol == 'camara' %}px-3 py-2 rounded-lg text-sm bg-amber-500 text-slate-900{% else %}btn-primary text-sm{% endif %}">{{ p.nombre }} · Confirmar</button>
+                            <button class="{% if grupo.rol == 'camara' %}px-3 py-2 rounded-lg text-sm bg-amber-500 text-slate-900{% else %}btn-primary text-sm{% endif %}">{% if p.mostrar_carga %}{{ p.nombre }} · {{ p.turnos }} {{ 'turno' if p.turnos == 1 else 'turnos' }}{% if p.sugerido %} · Sugerido{% endif %}{% else %}{{ p.nombre }} · Confirmar{% endif %}</button>
                         </form>
                         {% endfor %}
                     </div>
@@ -144,6 +144,31 @@
             return;
           }
           var grupo = form.closest(".grupo");
+          var persona = form.getAttribute("data-persona");
+          document.querySelectorAll('.js-confirmar[data-persona="' + persona + '"]').forEach(function(otro){
+            if (otro === form || otro.getAttribute("data-comparar") !== "1") return;
+            otro.setAttribute("data-turnos", String(parseInt(otro.getAttribute("data-turnos") || "0", 10) + 1));
+          });
+          document.querySelectorAll("#listaConfirmar .grupo").forEach(function(bloque){
+            if (bloque === grupo) return;
+            var forms = Array.prototype.slice.call(bloque.querySelectorAll(".js-confirmar"));
+            if (forms.length < 2) return;
+            var menor = Math.min.apply(null, forms.map(function(f){ return parseInt(f.getAttribute("data-turnos") || "0", 10); }));
+            var unicos = forms.filter(function(f){ return parseInt(f.getAttribute("data-turnos") || "0", 10) === menor; }).length === 1;
+            forms.sort(function(a, b){
+              var diff = parseInt(a.getAttribute("data-turnos") || "0", 10) - parseInt(b.getAttribute("data-turnos") || "0", 10);
+              if (diff) return diff;
+              return (a.getAttribute("data-nombre") || "").localeCompare(b.getAttribute("data-nombre") || "", "es");
+            });
+            var caja = forms[0].parentElement;
+            forms.forEach(function(f){
+              var n = parseInt(f.getAttribute("data-turnos") || "0", 10);
+              var texto = f.getAttribute("data-nombre") + " · " + n + (n === 1 ? " turno" : " turnos");
+              if (unicos && n === menor) texto += " · Sugerido";
+              f.querySelector("button").textContent = texto;
+              caja.appendChild(f);
+            });
+          });
           if (grupo) {
             grupo.querySelectorAll("button").forEach(function(b){ b.disabled = true; });
             grupo.classList.add("sale");
