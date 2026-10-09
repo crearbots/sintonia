@@ -91,6 +91,12 @@ class ConfigPunto(Base):
     jue = Column(Boolean, default=True, nullable=False)
     vie = Column(Boolean, default=True, nullable=False)
     sab = Column(Boolean, default=True, nullable=False)
+    convivencia_fimlm = Column(Boolean, default=False, nullable=False)
+    labor_comunicaciones = Column(String(60), nullable=False, default="")
+    labor_politica = Column(String(60), nullable=False, default="")
+    labor_juventudes = Column(String(60), nullable=False, default="")
+    labor_electoral = Column(String(60), nullable=False, default="")
+    labor_fimlm = Column(String(60), nullable=False, default="")
 
 
 class DomingoPunto(Base):

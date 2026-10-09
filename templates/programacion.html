@@ -12,7 +12,17 @@
     <style>
         .foto-wa { width: 100%; margin: 0 auto; background: #f8fafc; color: #0f172a; border-radius: 16px; padding: 16px; }
         .foto-titulo { margin: 0; font-size: 22px; font-weight: 800; }
-        .foto-sub { margin: 2px 0 12px; font-size: 14px; color: #64748b; font-weight: 600; }
+        .foto-sub { margin: 2px 0 0; font-size: 14px; color: #64748b; font-weight: 600; }
+        .foto-cabeza { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
+        .foto-leyenda { display: flex; flex-direction: row-reverse; align-items: flex-start; justify-content: flex-start; gap: 18px; max-width: 68%; }
+        .foto-leyenda-col { display: flex; flex-direction: column; gap: 6px; }
+        .foto-leyenda p { margin: 0; display: flex; align-items: center; gap: 6px; min-height: 16px; line-height: 16px; font-size: 12px; font-weight: 700; color: #0f172a; white-space: nowrap; }
+        .foto-punto { width: 12px; height: 12px; border-radius: 999px; flex: 0 0 12px; display: block; }
+        .foto-punto.com { background: #f59e0b; }
+        .foto-punto.pol { background: #6d28d9; }
+        .foto-punto.juv { background: #15803d; }
+        .foto-punto.ele { background: #ea580c; }
+        .foto-punto.fim { background: #1d4ed8; }
         .foto-dias { display: grid; gap: 10px; }
         .foto-dia { background: #fff; border: 2px solid #0f172a; border-radius: 12px; overflow: hidden; min-width: 0; }
         .foto-dia h2 { margin: 0; padding: 8px 10px; background: #1e293b; color: #fff; font-size: 14px; font-weight: 700; display: flex; justify-content: space-between; gap: 6px; }
@@ -38,6 +48,11 @@
         .foto-nombre.fim { background: #1d4ed8; color: #fff; }
         .foto-nombre.otro { background: #e2e8f0; color: #0f172a; }
         .foto-pendiente { margin: 0; color: #b91c1c; font-size: 13px; font-weight: 800; letter-spacing: 0.03em; }
+        .leyenda-pantalla { display: flex; flex-direction: row; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+        .leyenda-pantalla p { width: auto; flex: 0 0 auto; }
+        @media (max-width: 700px) {
+            .leyenda-pantalla { flex-direction: column; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; max-height: 78px; gap: 6px 16px; }
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -61,7 +76,14 @@
             {% endif %}
             {% endif %}
         </div>
-        <p class="text-sm mb-4">{% if modo == 'foto' %}Esta vista es para la captura. No hay botones de editar.{% else %}Estás armando la semana. Toca + Agregar en un horario.{% endif %}</p>
+        <p class="text-sm mb-4">{% if modo == 'foto' %}Esta vista es para la captura. No hay botones de editar.{% elif convivencia %}Esta semana COM y DEL pueden programar aunque FIMLM ya esté en esa hora.{% else %}Estás armando la semana. Toca + Agregar en un horario.{% endif %}</p>
+        {% if leyenda and modo != 'foto' %}
+        <div class="leyenda-pantalla bg-white rounded-xl shadow p-3 mb-4">
+            {% for item in leyenda %}
+            <p class="text-sm m-0 flex items-center gap-2"><span class="foto-punto {{ item.clase }}"></span><span>{{ item.sigla }} · {{ item.texto }}</span></p>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% if modo != 'foto' %}
         <div id="guia" class="hidden bg-white rounded-xl shadow p-4 mb-4">
             <p class="font-medium mb-2">Cómo programar (3 pasos)</p>
@@ -146,8 +168,23 @@
         {% if modo == 'foto' %}
         <p id="fotoMsg" class="text-sm mb-2" style="color:var(--muted)"></p>
         <div id="foto-cuadro" class="foto-wa" data-ancho="{% if dias_foto|length == 7 %}1120{% elif dias_foto|length <= 2 or dias_foto|length == 4 %}760{% else %}980{% endif %}" style="max-width:{% if dias_foto|length == 7 %}1120px{% elif dias_foto|length <= 2 or dias_foto|length == 4 %}760px{% else %}980px{% endif %}">
-            <p class="foto-titulo">Punto de información</p>
-            <p class="foto-sub">{{ lunes|rango_semana(domingo) }}</p>
+            <div class="foto-cabeza">
+                <div>
+                    <p class="foto-titulo">Punto de información</p>
+                    <p class="foto-sub">{{ lunes|rango_semana(domingo) }}</p>
+                </div>
+                {% if leyenda_cols %}
+                <div class="foto-leyenda">
+                    {% for col in leyenda_cols %}
+                    <div class="foto-leyenda-col">
+                        {% for item in col %}
+                        <p><span class="foto-punto {{ item.clase }}"></span><span>{{ item.sigla }} · {{ item.texto }}</span></p>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
             {% set n = dias_foto|length %}
             <div class="foto-dias" style="grid-template-columns: repeat({% if n == 7 %}12{% elif n == 5 %}6{% elif n == 4 or n == 2 %}2{% elif n <= 1 %}1{% else %}3{% endif %}, minmax(0, 1fr));">
             {% for dia in dias_foto %}
@@ -189,6 +226,7 @@
                     <span class="text-sm text-blue-700">Reservado por FIMLM</span>
                     {% endif %}
                 </div>
+                {% if s.comparte_fimlm %}<p class="text-xs" style="color:var(--muted)">FIMLM también está en esta hora. Puedes agregar a tu equipo.</p>{% endif %}
                 {% for g in s.gente %}
                 <div class="flex justify-between items-center py-1 text-sm">
                     <span class="nom-asig {% if puesto.get(g.persona.id, 99) <= 10 %}metal-oro{% elif puesto.get(g.persona.id, 99) <= 20 %}metal-plata{% elif puesto.get(g.persona.id, 99) <= 30 %}metal-bronce{% endif %}" style="padding:2px 8px;border-radius:8px;display:inline-block;">{{ g.persona.nombre }} <span style="opacity:.7">({{ g.turno.delegacion }})</span></span>

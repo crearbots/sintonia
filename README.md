@@ -98,7 +98,7 @@ Fuente de verdad: GitHub, rama **`master`**. Un push a `master` dispara el deplo
 
 ## Versiones
 
-Los cortes estables están en los [tags](https://github.com/crearbots/sintonia/tags). Último: **v1.13.0**.
+Los cortes estables están en los [tags](https://github.com/crearbots/sintonia/tags). Último: **v1.14.0**.
 
 | Tag | Resumen |
 | --- | --- |
@@ -114,6 +114,7 @@ Los cortes estables están en los [tags](https://github.com/crearbots/sintonia/t
 | v1.10.0 | Calendario del punto, festivos, podio y recordatorio de domingo |
 | v1.11.0 | Meta 975 y menú híbrido |
 | v1.13.0 | Foto de programación para WhatsApp y festivo en Sonido |
+| v1.14.0 | Turnos sugeridos en Sonido, fuente del punto, foto en celular y pie en todas las pantallas |
 
 ## Privacidad
 

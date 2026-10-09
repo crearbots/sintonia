@@ -108,6 +108,15 @@ def on_startup():
                 conn.execute(sql_text("ALTER TABLE claves_enlace ADD COLUMN plantilla VARCHAR(2000)"))
                 conn.commit()
                 print("Columna claves_enlace.plantilla agregada")
+            cfgcols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(config_punto)")).fetchall()]
+            if cfgcols and "convivencia_fimlm" not in cfgcols:
+                conn.execute(sql_text("ALTER TABLE config_punto ADD COLUMN convivencia_fimlm BOOLEAN DEFAULT 0"))
+                conn.commit()
+                print("Columna config_punto.convivencia_fimlm agregada")
+            for col in ("labor_comunicaciones", "labor_politica", "labor_juventudes", "labor_electoral", "labor_fimlm"):
+                if cfgcols and col not in cfgcols:
+                    conn.execute(sql_text(f"ALTER TABLE config_punto ADD COLUMN {col} VARCHAR(60) DEFAULT ''"))
+                    conn.commit()
     except Exception as e:
         print(f"Migración: {e}")
 
@@ -1378,7 +1387,8 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
             reservado = any(g["turno"].delegacion == "fimlm" for g in gente)
             slots.append({
                 "horario": h, "etiqueta": etiqueta_horario(h), "gente": gente,
-                "reservado_fimlm": reservado and delg != "fimlm",
+                "reservado_fimlm": reservado and delg != "fimlm" and not cfg.convivencia_fimlm,
+            "comparte_fimlm": reservado and delg != "fimlm" and cfg.convivencia_fimlm,
             })
         por_dia.append({
             "fecha": d,
@@ -1408,6 +1418,27 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
             "festivo": es_festivo(d) and d.weekday() < 5,
             "slots": slots,
         })
+    presentes = []
+    for dia in dias_foto:
+        for s in dia["slots"]:
+            for g in s["gente"]:
+                ddel = g["turno"].delegacion
+                if ddel not in presentes and ddel != "sonido":
+                    presentes.append(ddel)
+    siglas = {
+        "comunicaciones": ("COM", "com"),
+        "politica": ("POL", "pol"),
+        "juventudes": ("JUV", "juv"),
+        "electoral": ("ELE", "ele"),
+        "fimlm": ("FIM", "fim"),
+    }
+    leyenda = []
+    for ddel in presentes:
+        texto = (getattr(cfg, f"labor_{ddel}", "") or "").strip()
+        if not texto or ddel not in siglas:
+            continue
+        leyenda.append({"sigla": siglas[ddel][0], "clase": siglas[ddel][1], "texto": texto})
+    leyenda_cols = [leyenda[i:i + 3] for i in range(0, len(leyenda), 3)]
     dias_vista = por_dia if modo != "foto" else [x for x in por_dia if x["tiene"]]
     alertas = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).order_by(Alerta.id.desc()).all()
     request.session["n_alertas"] = len(alertas)
@@ -1416,6 +1447,8 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
         "user": user, "delg": delg, "es_fimlm": delg == "fimlm",
         "lunes": lunes, "domingo": dias[-1], "dias": dias_vista, "todos_dias": por_dia,
         "dias_foto": dias_foto,
+        "leyenda": leyenda,
+        "leyenda_cols": leyenda_cols,
         "mis_cols": mis_cols, "busqueda": busqueda, "q": q,
         "fecha_sel": fecha_sel, "horario_sel": horario_sel, "modo": modo or "editar",
         "error": error, "ok": ok, "alertas": alertas, "tutorial": not request.session.get("tut_prog"),
@@ -1424,6 +1457,7 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
         "busqueda_llena": busqueda_llena,
         "punto_apagado": apagado,
         "puesto": puesto,
+        "convivencia": cfg.convivencia_fimlm,
     })
 
 
@@ -1461,7 +1495,7 @@ async def programacion_asignar(
     domingos = {r.fecha for r in db.query(DomingoPunto).all()}
     if not dia_permitido(cfg, f, domingos, delg):
         return RedirectResponse(url="/programacion?error=Ese+día+no+está+habilitado+para+tu+delegación", status_code=303)
-    if delg != "fimlm" and db.query(Turno).filter(
+    if delg != "fimlm" and not cfg.convivencia_fimlm and db.query(Turno).filter(
         Turno.fecha == f, Turno.horario == horario, Turno.delegacion == "fimlm"
     ).first():
         return RedirectResponse(
@@ -1488,7 +1522,7 @@ async def programacion_asignar(
             return RedirectResponse(url="/programacion?error=No+se+puede+programar+a+esta+persona:+ya+tiene+el+máximo+de+2+turnos+esta+semana", status_code=303)
     otros = db.query(Turno).filter(
         Turno.fecha == f, Turno.horario == horario, Turno.delegacion != "fimlm", Turno.delegacion != "sonido"
-    ).all() if delg == "fimlm" else []
+    ).all() if delg == "fimlm" and not cfg.convivencia_fimlm else []
     if delg == "fimlm" and otros and confirmar_fimlm != "si":
         nombres = []
         for t in otros:
@@ -2255,6 +2289,12 @@ async def config_punto_guardar(
     vie: str = Form(""),
     sab: str = Form(""),
     confirmar_bajas: str = Form(""),
+    convivencia_fimlm: str = Form(""),
+    labor_comunicaciones: str = Form(""),
+    labor_politica: str = Form(""),
+    labor_juventudes: str = Form(""),
+    labor_electoral: str = Form(""),
+    labor_fimlm: str = Form(""),
 ):
     from datetime import datetime as dt
     user, redir = require_com_user(request)
@@ -2274,11 +2314,26 @@ async def config_punto_guardar(
         wds = {wd_map[k] for k in apagados}
         turnos = db.query(Turno).filter(Turno.semana_lunes >= lunes_ok).all()
         afectados = [t for t in turnos if t.fecha.weekday() in wds]
-    if afectados and confirmar_bajas != "si":
-        dias = ", ".join(nombres[k] for k in apagados)
+    convivencia_nueva = convivencia_fimlm == "on"
+    sacar_conv = []
+    if cfg.convivencia_fimlm and not convivencia_nueva:
+        from collections import defaultdict
+        grupos = defaultdict(list)
+        for tno in db.query(Turno).filter(Turno.semana_lunes >= lunes_ok, Turno.delegacion != "sonido").all():
+            grupos[(tno.fecha, tno.horario)].append(tno)
+        for grupo in grupos.values():
+            if any(t.delegacion == "fimlm" for t in grupo):
+                sacar_conv.extend(t for t in grupo if t.delegacion != "fimlm")
+    if (afectados or sacar_conv) and confirmar_bajas != "si":
+        partes = []
+        if afectados:
+            dias = ", ".join(nombres[k] for k in apagados)
+            partes.append(f"Hay {len(afectados)} persona(s) en {dias} de la semana abierta")
+        if sacar_conv:
+            partes.append(f"Al cerrar la convivencia salen {len(sacar_conv)} persona(s) de las horas donde también está FIMLM")
         return RedirectResponse(
             url="/config-punto?error=" + (
-                f"Hay+{len(afectados)}+persona(s)+en+{dias.replace(' ', '+')}+de+la+semana+abierta.+Si+guardas,+se+quitan.+Vuelve+a+guardar+marcando+la+casilla+de+confirmación."
+                ". ".join(partes) + ". Si guardas, se quitan. Vuelve a guardar marcando la casilla de confirmación."
             ).replace(" ", "+"),
             status_code=303,
         )
@@ -2289,10 +2344,35 @@ async def config_punto_guardar(
         return RedirectResponse(url="/config-punto?error=Fechas+inválidas", status_code=303)
     for k, v in nuevos.items():
         setattr(cfg, k, v)
+    cfg.convivencia_fimlm = convivencia_nueva
+    cfg.labor_comunicaciones = labor_comunicaciones.strip()[:60]
+    cfg.labor_politica = labor_politica.strip()[:60]
+    cfg.labor_juventudes = labor_juventudes.strip()[:60]
+    cfg.labor_electoral = labor_electoral.strip()[:60]
+    cfg.labor_fimlm = labor_fimlm.strip()[:60]
     for tno in afectados:
         db.delete(tno)
+    if sacar_conv:
+        from collections import defaultdict
+        por_del = defaultdict(list)
+        for tno in sacar_conv:
+            per = db.query(Persona).filter(Persona.id == tno.persona_id).first()
+            por_del[tno.delegacion].append(
+                f"{per.nombre if per else '?'} el {tno.fecha.strftime('%d/%m')} {etiqueta_horario(tno.horario)}"
+            )
+            db.delete(tno)
+        for ddeleg, noms in por_del.items():
+            db.add(Alerta(
+                para_delegacion=ddeleg, tipo="convivencia_fin",
+                texto="Se cerró la convivencia con FIMLM. Salieron: " + ", ".join(noms) + ".",
+                leida=False,
+            ))
     db.commit()
-    extra = f". Se quitaron {len(afectados)} asignaciones." if afectados else ""
+    extra = ""
+    if afectados:
+        extra += f". Se quitaron {len(afectados)} asignaciones."
+    if sacar_conv:
+        extra += f" Salieron {len(sacar_conv)} de las horas compartidas con FIMLM."
     return RedirectResponse(url="/config-punto?ok=Guardado" + extra.replace(" ", "+"), status_code=303)
 
 

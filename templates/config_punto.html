@@ -8,59 +8,101 @@
     <link rel="stylesheet" href="/static/css/theme.css">
     <script src="/static/js/theme.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .cfg-grid { display: grid; gap: 16px; }
+        @media (min-width: 900px) {
+            .cfg-grid { grid-template-columns: 1.1fr .9fr; align-items: start; }
+            .cfg-span { grid-column: 1 / -1; }
+        }
+        .dia-chip { display: flex; align-items: center; justify-content: center; min-height: 44px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-soft); cursor: pointer; font-size: 14px; font-weight: 600; }
+        .dia-chip input { position: absolute; opacity: 0; pointer-events: none; }
+        .dia-chip:has(input:checked) { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .labor-row { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: center; }
+        .labor-dot { width: 14px; height: 14px; border-radius: 999px; }
+        .dot-com { background: #f59e0b; }
+        .dot-pol { background: #6d28d9; }
+        .dot-juv { background: #15803d; }
+        .dot-ele { background: #ea580c; }
+        .dot-fim { background: #1d4ed8; }
+        .cfg-input { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+        .aviso-baja { border: 1px solid var(--warning); border-radius: 12px; padding: 12px; background: var(--bg-soft); }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     {% set activo = "config" %}
     {% include "_nav.html" %}
-    <main class="max-w-xl mx-auto px-4 py-8">
+    <main class="max-w-5xl mx-auto px-4 py-6">
         <h1 class="text-2xl font-semibold mb-1">Calendario del punto</h1>
-        <p class="text-sm mb-6" style="color:var(--muted)">Esto aplica a Política, Juventudes, Electoral y Comunicaciones. FIMLM no tiene este límite.</p>
+        <p class="text-sm mb-4" style="color:var(--muted)">Tres cosas: qué días se programa, si se comparte la hora con FIMLM, y qué labor sale en la foto.</p>
         {% if ok %}<p class="mb-3 text-sm" style="color:var(--success)">{{ ok }}</p>{% endif %}
         {% if error %}<p class="alert-error mb-3">{{ error }}</p>{% endif %}
-        <form method="post" action="/config-punto" class="bg-white rounded-xl shadow p-5 space-y-4 mb-8">
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-sm mb-1">Inicio de vigencia</label>
-                    <input type="date" name="vigencia_inicio" class="w-full px-3 py-2 border rounded-md"
-                           value="{{ cfg.vigencia_inicio.isoformat() if cfg.vigencia_inicio else '' }}">
+        <form method="post" action="/config-punto" class="cfg-grid">
+            <section class="card">
+                <h2 class="font-semibold mb-1">Días habilitados</h2>
+                <p class="text-sm mb-4" style="color:var(--muted)">Aplica a Política, Juventudes, Electoral y Comunicaciones. FIMLM no tiene este límite.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                    <label class="block text-sm">Inicio de vigencia
+                        <input type="date" name="vigencia_inicio" class="cfg-input mt-1" value="{{ cfg.vigencia_inicio.isoformat() if cfg.vigencia_inicio else '' }}">
+                    </label>
+                    <label class="block text-sm">Fin de vigencia
+                        <input type="date" name="vigencia_fin" class="cfg-input mt-1" value="{{ cfg.vigencia_fin.isoformat() if cfg.vigencia_fin else '' }}">
+                    </label>
                 </div>
-                <div>
-                    <label class="block text-sm mb-1">Fin de vigencia</label>
-                    <input type="date" name="vigencia_fin" class="w-full px-3 py-2 border rounded-md"
-                           value="{{ cfg.vigencia_fin.isoformat() if cfg.vigencia_fin else '' }}">
+                <p class="text-sm font-medium mb-2">Lunes a sábado</p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <label class="dia-chip"><input type="checkbox" name="lun" {% if cfg.lun %}checked{% endif %}>Lunes</label>
+                    <label class="dia-chip"><input type="checkbox" name="mar" {% if cfg.mar %}checked{% endif %}>Martes</label>
+                    <label class="dia-chip"><input type="checkbox" name="mie" {% if cfg.mie %}checked{% endif %}>Miércoles</label>
+                    <label class="dia-chip"><input type="checkbox" name="jue" {% if cfg.jue %}checked{% endif %}>Jueves</label>
+                    <label class="dia-chip"><input type="checkbox" name="vie" {% if cfg.vie %}checked{% endif %}>Viernes</label>
+                    <label class="dia-chip"><input type="checkbox" name="sab" {% if cfg.sab %}checked{% endif %}>Sábado</label>
                 </div>
-            </div>
-            <p class="text-sm font-medium">Días de lunes a sábado</p>
-            <div class="grid grid-cols-3 gap-2 text-sm">
-                <label class="flex items-center gap-2"><input type="checkbox" name="lun" {% if cfg.lun %}checked{% endif %}> Lunes</label>
-                <label class="flex items-center gap-2"><input type="checkbox" name="mar" {% if cfg.mar %}checked{% endif %}> Martes</label>
-                <label class="flex items-center gap-2"><input type="checkbox" name="mie" {% if cfg.mie %}checked{% endif %}> Miércoles</label>
-                <label class="flex items-center gap-2"><input type="checkbox" name="jue" {% if cfg.jue %}checked{% endif %}> Jueves</label>
-                <label class="flex items-center gap-2"><input type="checkbox" name="vie" {% if cfg.vie %}checked{% endif %}> Viernes</label>
-                <label class="flex items-center gap-2"><input type="checkbox" name="sab" {% if cfg.sab %}checked{% endif %}> Sábado</label>
-            </div>
-            <label class="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="confirmar_bajas" value="si">
-                Sí, quitar a quienes ya estaban esos días (semana actual y siguientes)
-            </label>
-            <button class="btn-primary">Guardar</button>
+            </section>
+            <section class="card">
+                <h2 class="font-semibold mb-1">Convivencia con FIMLM</h2>
+                <p class="text-sm mb-4" style="color:var(--muted)">Por temporadas. Apagado es la regla de siempre.</p>
+                <label class="dia-chip justify-start px-4 gap-2"><input type="checkbox" name="convivencia_fimlm" {% if cfg.convivencia_fimlm %}checked{% endif %}>COM y DEL pueden entrar en una hora de FIMLM</label>
+                <ul class="text-sm mt-4 space-y-2" style="color:var(--muted)">
+                    <li>Apagado: esa hora queda reservada. Si FIMLM entra después, los demás salen.</li>
+                    <li>Encendido: los dos equipos se quedan en la misma hora.</li>
+                    <li>Al apagarlo, COM y DEL salen de esas horas y les llega una alerta. Sonido no cambia.</li>
+                </ul>
+            </section>
+            <section class="card cfg-span">
+                <h2 class="font-semibold mb-1">Labor de la foto</h2>
+                <p class="text-sm mb-4" style="color:var(--muted)">El color ya es la delegación. Aquí escribes la labor de esta temporada. Todas pueden llevar el mismo texto. Si lo dejas vacío, esa delegación no sale en la leyenda.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="labor-row text-sm"><span class="labor-dot dot-com"></span><span>Comunicaciones<input type="text" name="labor_comunicaciones" maxlength="60" class="cfg-input mt-1" value="{{ cfg.labor_comunicaciones or '' }}" placeholder="Ej. Instalar la App"></span></label>
+                    <label class="labor-row text-sm"><span class="labor-dot dot-pol"></span><span>Política<input type="text" name="labor_politica" maxlength="60" class="cfg-input mt-1" value="{{ cfg.labor_politica or '' }}" placeholder="Ej. Instalar la App"></span></label>
+                    <label class="labor-row text-sm"><span class="labor-dot dot-juv"></span><span>Juventudes<input type="text" name="labor_juventudes" maxlength="60" class="cfg-input mt-1" value="{{ cfg.labor_juventudes or '' }}" placeholder="Ej. Invitar al campus"></span></label>
+                    <label class="labor-row text-sm"><span class="labor-dot dot-ele"></span><span>Electoral<input type="text" name="labor_electoral" maxlength="60" class="cfg-input mt-1" value="{{ cfg.labor_electoral or '' }}" placeholder="Ej. Instalar la App"></span></label>
+                    <label class="labor-row text-sm"><span class="labor-dot dot-fim"></span><span>FIMLM<input type="text" name="labor_fimlm" maxlength="60" class="cfg-input mt-1" value="{{ cfg.labor_fimlm or '' }}" placeholder="Ej. Dudas del campus"></span></label>
+                </div>
+            </section>
+            <section class="aviso-baja cfg-span">
+                <label class="flex items-start gap-3 text-sm">
+                    <input type="checkbox" name="confirmar_bajas" value="si" class="mt-1">
+                    <span>Sí, quitar a quienes ya estaban si apago un día o cierro la convivencia. Aplica a la semana actual y las siguientes.</span>
+                </label>
+                <button class="btn-primary mt-3">Guardar</button>
+            </section>
         </form>
-        <div class="bg-white rounded-xl shadow p-5">
-            <h2 class="font-medium mb-2">Domingos habilitados</h2>
+        <section class="card mt-4">
+            <h2 class="font-semibold mb-1">Domingos habilitados</h2>
             <p class="text-sm mb-3" style="color:var(--muted)">DEL solo programa el domingo si la fecha está en esta lista.</p>
-            <form method="post" action="/config-punto/domingo" class="flex gap-2 mb-4">
-                <input type="date" name="fecha" required class="flex-1 px-3 py-2 border rounded-md">
+            <form method="post" action="/config-punto/domingo" class="flex flex-col sm:flex-row gap-2 mb-4">
+                <input type="date" name="fecha" required class="cfg-input sm:max-w-xs">
                 <button class="btn-primary">Agregar domingo</button>
             </form>
             {% for d in domingos %}
-            <form method="post" action="/config-punto/domingo/{{ d.id }}/quitar" class="flex justify-between items-center py-1 text-sm">
+            <form method="post" action="/config-punto/domingo/{{ d.id }}/quitar" class="flex justify-between items-center py-2 text-sm border-t" style="border-color:var(--border)">
                 <span>{{ d.fecha.strftime('%A %d/%m/%Y') }}</span>
-                <button class="text-red-600">Quitar</button>
+                <button class="btn-danger text-sm">Quitar</button>
             </form>
             {% else %}
             <p class="text-sm" style="color:var(--muted)">Ningún domingo habilitado.</p>
             {% endfor %}
-        </div>
+        </section>
     </main>
     {% include "_footer.html" %}
 </body>
