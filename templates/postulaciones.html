@@ -21,7 +21,8 @@
         <p class="text-sm mb-3" style="color:var(--muted)">Semana {{ lunes|rango_semana(domingo) }}. Confirmar aquí no impide armar a mano.</p>
         <div class="flex flex-wrap gap-2 mb-4">
             <a href="/postulaciones?modo=link" class="px-4 py-2 rounded-full text-sm font-medium {% if modo == 'link' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Enlace</a>
-            <a href="/postulaciones?modo=confirmar" class="px-4 py-2 rounded-full text-sm font-medium {% if modo != 'link' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Confirmar</a>
+            <a href="/postulaciones?modo=confirmar" class="px-4 py-2 rounded-full text-sm font-medium {% if modo == 'confirmar' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Confirmar</a>
+            <a href="/postulaciones?modo=equipo" class="px-4 py-2 rounded-full text-sm font-medium {% if modo == 'equipo' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Equipo</a>
         </div>
         {% if error %}<p class="alert-error mb-3">{{ error }}</p>{% endif %}
         {% if ok %}<p class="mb-3 text-sm" style="color:var(--success)">{{ ok }}</p>{% endif %}
@@ -58,7 +59,7 @@
             </form>
             <span id="copiadoMsg" class="text-sm mt-2 hidden" style="color:var(--success)">Copiado</span>
         </section>
-        {% else %}
+        {% elif modo != 'equipo' %}
         <section class="bg-white rounded-xl shadow p-5 mb-4">
             <p class="font-medium mb-2">Por confirmar</p>
             <p class="text-sm mb-3" style="color:var(--muted)">Un clic confirma a esa persona y cierra ese horario. Los demás de esa hora se ocultan. Si liberas el cupo en Armar semana, vuelven a salir aquí.</p>
@@ -94,6 +95,108 @@
             <p class="text-sm">{% for p in no_pueden %}{{ p.nombre }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
             {% else %}
             <p class="text-sm" style="color:var(--muted)">Nadie avisó que no puede.</p>
+            {% endif %}
+            <p class="font-medium mt-4 mb-2">No indicaron nada</p>
+            <p class="text-sm mb-2" style="color:var(--muted)">Están en el equipo y esta semana no postularon ni dijeron que no pueden.</p>
+            {% if sin_indicar %}
+            <div class="space-y-2">
+                {% for p in sin_indicar %}
+                <div class="alerta-card">
+                    <p class="text-sm m-0"><strong>{{ p.nombre }}</strong>{% if p.semanas %} · {{ p.semanas }} {{ 'semana' if p.semanas == 1 else 'semanas' }} sin diligenciar{% endif %}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm" style="color:var(--muted)">Todo el equipo indicó algo esta semana.</p>
+            {% endif %}
+        </section>
+        {% else %}
+        <section class="bg-white rounded-xl shadow p-5 mb-4">
+            <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+                <div>
+                    <p class="font-medium">Equipo de Sonido</p>
+                    <p class="text-sm" style="color:var(--muted)">Quien diligencia el enlace entra solo. Agregar es para quien no está. Buscar encuentra a alguien del equipo.</p>
+                </div>
+                <p class="text-2xl font-semibold" id="totalEquipo">{{ miembros|length }} <span class="text-sm font-normal" style="color:var(--muted)">en el equipo</span></p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <a href="/postulaciones?modo=equipo&filtro=si" class="alerta-card">
+                    <p class="text-sm m-0" style="color:var(--muted)">Indicaron esta semana</p>
+                    <p class="text-2xl font-semibold m-0" id="totalIndicaron">{{ indicaron }}</p>
+                </a>
+                <a href="/postulaciones?modo=equipo&filtro=no" class="alerta-card">
+                    <p class="text-sm m-0" style="color:var(--muted)">No indicaron</p>
+                    <p class="text-2xl font-semibold m-0" id="totalNoIndicaron">{{ sin_indicar|length }}</p>
+                </a>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-3">
+                <a href="/postulaciones?modo=equipo&filtro=todos" class="px-3 py-1 rounded-full text-sm {% if filtro == 'todos' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Todos</a>
+                <a href="/postulaciones?modo=equipo&filtro=no" class="px-3 py-1 rounded-full text-sm {% if filtro == 'no' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">No indicaron</a>
+                <a href="/postulaciones?modo=equipo&filtro=si" class="px-3 py-1 rounded-full text-sm {% if filtro == 'si' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Indicaron</a>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-3">
+                <form method="get" action="/postulaciones" class="flex flex-1 gap-2 min-w-[16rem]">
+                    <input type="hidden" name="modo" value="equipo">
+                    <input type="hidden" name="filtro" value="{{ filtro }}">
+                    <input type="search" name="q" value="{{ q }}" placeholder="Buscar en el equipo" class="px-3 py-2 border rounded-md text-sm flex-1">
+                    <button class="btn-ghost text-sm">Buscar</button>
+                </form>
+                <button type="button" class="btn-primary text-sm" id="btnAbrirAlta">Agregar</button>
+            </div>
+            <div id="panelAlta" class="alerta-card mb-4 {% if not alta and not alta_estado %}hidden{% endif %}">
+                <p class="text-sm font-medium mb-2">Agregar al equipo</p>
+                <form method="get" action="/postulaciones" class="flex flex-wrap gap-2 mb-3">
+                    <input type="hidden" name="modo" value="equipo">
+                    <input name="alta" value="{{ alta }}" placeholder="Celular" class="px-3 py-2 border rounded-md text-sm flex-1 min-w-[10rem]">
+                    <button class="btn-ghost text-sm">Buscar</button>
+                </form>
+                {% if alta_estado == 'invalido' %}
+                <p class="text-sm m-0" style="color:var(--danger)">El celular debe tener 10 dígitos.</p>
+                {% elif alta_estado == 'ya' %}
+                <p class="text-sm m-0">{{ alta_persona.nombre }} ya está en el equipo.</p>
+                <a href="#persona-{{ alta_persona.id }}" class="btn-ghost text-sm mt-2 inline-block">Ver en la lista</a>
+                {% elif alta_estado == 'candidato' %}
+                <form method="post" action="/programacion/sonido/equipo" class="flex flex-wrap items-center gap-2">
+                    <input type="hidden" name="accion" value="agregar">
+                    <input type="hidden" name="persona_id" value="{{ alta_persona.id }}">
+                    <p class="text-sm m-0">{{ alta_persona.nombre }}</p>
+                    <button class="btn-primary text-sm">Agregar</button>
+                </form>
+                {% elif alta_estado == 'nueva' %}
+                <form method="post" action="/programacion/sonido/equipo" class="grid sm:grid-cols-3 gap-2">
+                    <input type="hidden" name="accion" value="crear">
+                    <input type="hidden" name="celular" value="{{ alta_cel }}">
+                    <input name="nombre" required placeholder="Nombre" class="px-3 py-2 border rounded-md text-sm sm:col-span-2">
+                    <button class="btn-primary text-sm">Crear y agregar</button>
+                </form>
+                <p class="text-sm mt-2 m-0" style="color:var(--muted)">No está en la base. Comunicaciones recibe el aviso para validarla.</p>
+                {% endif %}
+            </div>
+            {% if q and not lista %}
+            <p class="text-sm mb-3" style="color:var(--muted)">Nadie del equipo coincide. Si es alguien nuevo, usa Agregar.</p>
+            {% endif %}
+            {% if lista %}
+            <div class="space-y-2">
+                {% for p in lista %}
+                <div id="persona-{{ p.id }}" class="alerta-card flex items-center justify-between gap-3 {% if ver == p.id %}ring-2 ring-amber-400{% endif %}" data-estado="{{ p.estado }}">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium m-0 truncate">{{ p.nombre }}</p>
+                        <p class="text-xs m-0 mt-1">
+                            <span class="px-2 py-0.5 rounded-full {% if p.estado == 'Postuló' %}bg-green-100 text-green-800{% elif p.estado == 'No puede' %}bg-amber-100 text-amber-800{% else %}bg-slate-200 text-slate-700{% endif %}">{{ p.estado }}</span>
+                            {% if p.semanas %}<span class="ml-1" style="color:var(--muted)">{{ p.semanas }} {{ 'semana' if p.semanas == 1 else 'semanas' }} sin diligenciar</span>{% endif %}
+                        </p>
+                    </div>
+                    <form method="post" action="/programacion/sonido/equipo" class="js-sacar" data-confirma="¿Sacar a {{ p.nombre }} del equipo?">
+                        <input type="hidden" name="persona_id" value="{{ p.id }}">
+                        <input type="hidden" name="accion" value="sacar">
+                        <input type="hidden" name="ajax" value="1">
+                        <button class="btn-danger text-sm">Sacar</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% elif not q %}
+            <p class="text-sm" style="color:var(--muted)">Todavía no hay nadie en el equipo.</p>
             {% endif %}
         </section>
         {% endif %}
@@ -192,6 +295,61 @@
         });
     });
   });
+  var btnAlta = document.getElementById("btnAbrirAlta");
+  var panel = document.getElementById("panelAlta");
+  if (btnAlta && panel) {
+    btnAlta.addEventListener("click", function(){
+      panel.classList.toggle("hidden");
+      var campo = panel.querySelector("input[name='alta']");
+      if (campo && !panel.classList.contains("hidden")) campo.focus();
+    });
+  }
+  document.querySelectorAll(".js-sacar").forEach(function(form){
+    form.addEventListener("submit", function(ev){
+      ev.preventDefault();
+      if (!confirm(form.getAttribute("data-confirma") || "¿Sacar del equipo?")) return;
+      var boton = form.querySelector("button");
+      if (boton) boton.disabled = true;
+      fetch(form.action, {method: "POST", body: new FormData(form), headers: {"Accept": "application/json"}})
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (!res.ok) {
+            if (boton) boton.disabled = false;
+            return;
+          }
+          var fila = form.closest(".alerta-card");
+          if (!fila) return;
+          var estado = fila.getAttribute("data-estado");
+          fila.style.transition = "opacity .2s ease";
+          fila.style.opacity = "0";
+          setTimeout(function(){
+            fila.remove();
+            var total = document.getElementById("totalEquipo");
+            if (total) {
+              var n = parseInt(total.textContent, 10);
+              if (!isNaN(n)) total.firstChild.textContent = String(Math.max(0, n - 1)) + " ";
+            }
+            if (estado === "No indicó") {
+              var no = document.getElementById("totalNoIndicaron");
+              if (no) {
+                var m = parseInt(no.textContent, 10);
+                if (!isNaN(m)) no.textContent = String(Math.max(0, m - 1));
+              }
+            } else {
+              var si = document.getElementById("totalIndicaron");
+              if (si) {
+                var k = parseInt(si.textContent, 10);
+                if (!isNaN(k)) si.textContent = String(Math.max(0, k - 1));
+              }
+            }
+          }, 200);
+        })
+        .catch(function(){ if (boton) boton.disabled = false; });
+    });
+  });
+  if (marcada && marcada.scrollIntoView) {
+    marcada.scrollIntoView({behavior: "smooth", block: "center"});
+  }
 })();
 </script>
     {% include "_footer.html" %}

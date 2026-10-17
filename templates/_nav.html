@@ -18,7 +18,13 @@
             <a href="/personas" class="nav-link {% if activo == 'personas' %}is-active{% endif %}">Personas</a>
             <a href="/config-punto" class="nav-link {% if activo == 'config' %}is-active{% endif %}">Calendario</a>
             <a href="/usuarios" class="nav-link {% if activo == 'usuarios' %}is-active{% endif %}">Usuarios</a>
-            <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener" class="nav-link">Consulta oficial</a>
+            <div class="consulta-wrap">
+                <button type="button" class="nav-link" id="btn-consulta-pc" aria-expanded="false">Consulta oficial</button>
+                <div id="consulta-drop" class="consulta-drop" hidden>
+                    <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener">Consulta anterior</a>
+                    <a href="https://dashboard-app.scirelabs.com/" target="_blank" rel="noopener">Consulta nueva</a>
+                </div>
+            </div>
             {% endif %}
         </nav>
 
@@ -64,9 +70,67 @@
         {% if es_com %}
         <a href="/config-punto">Calendario</a>
         <a href="/usuarios">Usuarios</a>
-        <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener">Consulta oficial</a>
+        <button type="button" class="mas-link" data-abrir-consulta>Consulta oficial</button>
         {% endif %}
         <a href="/logout" class="mas-salir">Salir</a>
         <button type="button" id="mas-cerrar" class="btn-ghost w-full mt-2">Cerrar</button>
     </div>
 </div>
+
+{% if es_com %}
+<div id="consulta-sheet" class="mas-sheet" hidden>
+    <button type="button" class="mas-backdrop" data-cerrar-consulta aria-label="Cerrar"></button>
+    <div class="mas-panel" role="dialog" aria-label="Consulta de sede nacional">
+        <p class="mas-title">Consulta de sede nacional</p>
+        <p class="text-sm mb-3" style="color:var(--muted)">Elige cuál abrir. Las dos se abren en otra pestaña.</p>
+        <a class="btn-ghost w-full mb-2" href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener">Consulta anterior</a>
+        <a class="btn-primary w-full mb-2" href="https://dashboard-app.scirelabs.com/" target="_blank" rel="noopener">Consulta nueva</a>
+        <button type="button" class="btn-ghost w-full" data-cerrar-consulta>Cerrar</button>
+    </div>
+</div>
+<script>
+(function () {
+  var sheet = document.getElementById("consulta-sheet");
+  var drop = document.getElementById("consulta-drop");
+  var btnPc = document.getElementById("btn-consulta-pc");
+  function abrirSheet() {
+    if (!sheet) return;
+    sheet.hidden = false;
+    sheet.classList.add("is-open");
+  }
+  function cerrarSheet() {
+    if (!sheet) return;
+    sheet.hidden = true;
+    sheet.classList.remove("is-open");
+  }
+  function cerrarDrop() {
+    if (!drop || !btnPc) return;
+    drop.hidden = true;
+    btnPc.setAttribute("aria-expanded", "false");
+  }
+  if (btnPc && drop) {
+    btnPc.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var abierto = !drop.hidden;
+      drop.hidden = abierto;
+      btnPc.setAttribute("aria-expanded", abierto ? "false" : "true");
+    });
+    document.addEventListener("click", function (e) {
+      if (!drop.hidden && !drop.contains(e.target) && e.target !== btnPc) cerrarDrop();
+    });
+  }
+  document.querySelectorAll("[data-abrir-consulta]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mas = document.getElementById("mas-sheet");
+      if (mas) { mas.hidden = true; mas.classList.remove("is-open"); }
+      abrirSheet();
+    });
+  });
+  if (sheet) {
+    sheet.querySelectorAll("[data-cerrar-consulta]").forEach(function (btn) {
+      btn.addEventListener("click", cerrarSheet);
+    });
+  }
+})();
+</script>
+{% endif %}

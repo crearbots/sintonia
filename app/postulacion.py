@@ -130,6 +130,87 @@ def postulaciones_persona(db: Session, persona_id: int, lunes: date, labor: str 
     ).all()
 
 
+def asegurar_equipo(db: Session, persona_id: int, hoy: date | None = None):
+    """Entra a la lista. Si estaba dado de baja, vuelve a contar desde hoy."""
+    from .models import EquipoSonido
+    hoy = hoy or hoy_colombia()
+    row = db.query(EquipoSonido).filter(EquipoSonido.persona_id == persona_id).first()
+    if row:
+        if not row.activo:
+            row.activo = True
+            row.desde = hoy
+        return row
+    row = EquipoSonido(persona_id=persona_id, desde=hoy, activo=True)
+    db.add(row)
+    return row
+
+
+def sembrar_equipo(db: Session) -> None:
+    """Quien ya diligenció el enlace entra a la lista. El conteo empieza hoy."""
+    from .models import AusenciaSemana, EquipoSonido, Postulacion
+    hoy = hoy_colombia()
+    ids = {p.persona_id for p in db.query(Postulacion.persona_id).filter(Postulacion.labor == "sonido").all()}
+    ids |= {a.persona_id for a in db.query(AusenciaSemana.persona_id).filter(AusenciaSemana.labor == "sonido").all()}
+    ya = {r.persona_id for r in db.query(EquipoSonido.persona_id).all()}
+    for pid in ids - ya:
+        db.add(EquipoSonido(persona_id=pid, desde=hoy, activo=True))
+    if ids - ya:
+        db.commit()
+
+
+def semanas_en_silencio(db: Session, persona_id: int, desde: date, abierta: date) -> int:
+    """Semanas cerradas seguidas sin postular ni decir que no puede."""
+    from datetime import timedelta
+    from .models import AusenciaSemana, Postulacion
+    if not desde:
+        return 0
+    lunes = abierta - timedelta(days=7)
+    n = 0
+    while lunes >= desde and n < 52:
+        respondio = db.query(Postulacion.id).filter(
+            Postulacion.persona_id == persona_id,
+            Postulacion.labor == "sonido",
+            Postulacion.semana_lunes == lunes,
+        ).first() or db.query(AusenciaSemana.id).filter(
+            AusenciaSemana.persona_id == persona_id,
+            AusenciaSemana.labor == "sonido",
+            AusenciaSemana.semana_lunes == lunes,
+        ).first()
+        if respondio:
+            break
+        n += 1
+        lunes -= timedelta(days=7)
+    return n
+
+
+def generar_alertas_silencio(db: Session) -> None:
+    """Lunes a viernes: una alerta a las 4 semanas cerradas y otra a las 8."""
+    from datetime import timedelta
+    from .models import Alerta, EquipoSonido, Persona
+    hoy = hoy_colombia()
+    if hoy.weekday() >= 5:
+        return
+    abierta = lunes_de(hoy)
+    for row in db.query(EquipoSonido).filter(EquipoSonido.activo == True).all():
+        n = semanas_en_silencio(db, row.persona_id, row.desde, abierta)
+        for umbral in (4, 8):
+            if n < umbral:
+                continue
+            cruce = abierta - timedelta(days=7 * umbral)
+            tipo = f"silencio|{umbral}|{row.persona_id}|{cruce.isoformat()}"
+            if db.query(Alerta.id).filter(Alerta.tipo == tipo).first():
+                continue
+            per = db.query(Persona).filter(Persona.id == row.persona_id).first()
+            nombre = per.nombre if per else "Un colaborador"
+            db.add(Alerta(
+                para_delegacion="sonido",
+                tipo=tipo,
+                texto=f"{nombre} lleva {umbral} semanas sin diligenciar el formulario de Sonido.",
+                leida=False,
+            ))
+    db.commit()
+
+
 def tiene_semana(db: Session, persona_id: int, lunes: date, labor: str = "sonido") -> bool:
     from .models import AusenciaSemana
     if postulaciones_persona(db, persona_id, lunes, labor):

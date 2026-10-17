@@ -23,14 +23,13 @@
         </div>
 
         
-        {% if es_com %}
         <div id="caja-alertas" class="bg-white rounded-xl shadow p-4 mb-4 border border-amber-200" style="scroll-margin-top:5.5rem;color:var(--text);">
-            <p class="font-medium mb-2">Alertas</p>
+            <p class="font-medium mb-3">Alertas</p>
             {% if alertas %}
             <div class="space-y-3 mb-3">
                 {% for a in alertas %}
                 {% if a.vista %}
-                <div class="border rounded-lg p-3">
+                <div class="alerta-card">
                     <p class="font-medium">{{ a.vista.nombre }} pidió cambiar su postulación</p>
                     <p class="text-sm font-medium mt-2">Antes</p>
                     <ul class="text-sm space-y-1 mb-2">{% for linea in a.vista.antes %}<li>{{ linea }}</li>{% endfor %}</ul>
@@ -47,53 +46,38 @@
                     </form>
                 </div>
                 {% else %}
-                <p class="text-sm">{{ a.texto }}</p>
-                {% endif %}
-                {% endfor %}
-            </div>
-            {% if alertas | rejectattr('vista') | list %}
-            <form method="post" action="/alertas/leer"><button class="btn-ghost text-sm">Entendido</button></form>
-            {% endif %}
-            {% else %}
-            <p class="text-sm" style="color:var(--muted)">No tienes alertas nuevas.</p>
-            {% endif %}
-        </div>
-        {% else %}
-        <div id="caja-alertas" class="bg-white rounded-xl shadow p-4 mb-4 border border-amber-200" style="scroll-margin-top:5.5rem;color:var(--text);">
-            <p class="font-medium mb-2">Alertas</p>
-            {% if alertas %}
-            <div class="space-y-3 mb-3">
-                {% for a in alertas %}
-                {% if a.vista %}
-                <div class="border rounded-lg p-3">
-                    <p class="font-medium">{{ a.vista.nombre }} pidió cambiar su postulación</p>
-                    <p class="text-sm font-medium mt-2">Antes</p>
-                    <ul class="text-sm space-y-1 mb-2">{% for linea in a.vista.antes %}<li>{{ linea }}</li>{% endfor %}</ul>
-                    <p class="text-sm font-medium">Ahora</p>
-                    {% if a.vista.ahora_no %}
-                    <p class="text-sm mb-2">Esta semana no puede apoyar.</p>
-                    {% else %}
-                    <ul class="text-sm space-y-1 mb-2">{% for linea in a.vista.ahora %}<li>{{ linea }}</li>{% endfor %}</ul>
-                    {% endif %}
-                    <form method="post" action="/programacion/sonido/cambio" class="flex gap-2">
-                        <input type="hidden" name="cambio_id" value="{{ a.vista.id }}">
-                        <button name="decision" value="aceptar" class="btn-primary text-sm">Aceptar</button>
-                        <button name="decision" value="rechazar" class="btn-ghost text-sm">Rechazar</button>
-                    </form>
+                {% if a.silencio %}
+                <div class="alerta-card">
+                    <p class="font-medium m-0">{{ a.texto }}</p>
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        <form method="post" action="/programacion/sonido/silencio">
+                            <input type="hidden" name="alerta_id" value="{{ a.id }}">
+                            <button name="accion" value="enterado" class="btn-primary text-sm">Enterado</button>
+                        </form>
+                        {% if a.silencio.celular %}
+                        <a href="https://wa.me/57{{ a.silencio.celular }}" target="_blank" rel="noopener" class="btn-success text-sm">Escribir por WhatsApp</a>
+                        {% endif %}
+                        <form method="post" action="/programacion/sonido/silencio" onsubmit="return confirm('¿Sacar a {{ a.silencio.nombre }} del equipo de Sonido?')">
+                            <input type="hidden" name="alerta_id" value="{{ a.id }}">
+                            <button name="accion" value="sacar" class="btn-danger text-sm">Sacar del equipo</button>
+                        </form>
+                    </div>
                 </div>
                 {% else %}
-                <p class="text-sm">{{ a.texto }}</p>
+                <div class="alerta-card">
+                    <p class="text-sm m-0">{{ a.texto }}</p>
+                </div>
+                {% endif %}
                 {% endif %}
                 {% endfor %}
             </div>
-            {% if alertas | rejectattr('vista') | list %}
+            {% if alertas | rejectattr('vista') | rejectattr('silencio') | list %}
             <form method="post" action="/alertas/leer"><button class="btn-ghost text-sm">Entendido</button></form>
             {% endif %}
             {% else %}
             <p class="text-sm" style="color:var(--muted)">No tienes alertas nuevas.</p>
             {% endif %}
         </div>
-        {% endif %}
 
         <div class="dash-top">
         <div class="bg-white rounded-xl shadow-md p-6 sm:p-8 border border-gray-100">

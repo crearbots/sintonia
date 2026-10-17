@@ -159,6 +159,17 @@ class CambioPostulacion(Base):
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class EquipoSonido(Base):
+    """Quién pertenece al equipo de Sonido. Sonido la administra."""
+
+    __tablename__ = "equipo_sonido"
+
+    id = Column(Integer, primary_key=True)
+    persona_id = Column(Integer, nullable=False, unique=True, index=True)
+    desde = Column(Date, nullable=False)
+    activo = Column(Boolean, default=True, nullable=False)
+
+
 class AusenciaSemana(Base):
     """El colaborador avisa que esa semana no puede. No marca horarios."""
 

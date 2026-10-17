@@ -19,6 +19,7 @@
         .dia.abierto .cuerpo { display: block; }
         .hueco { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
         .hueco input { width: 22px; height: 22px; }
+        .hueco.marcado { border-color: #16a34a; background: color-mix(in srgb, #16a34a 12%, var(--card)); }
         body.postular { padding-bottom: 0; display: flex; flex-direction: column; min-height: 100dvh; }
         body.postular main { width: 100%; max-width: 32rem; margin: 0 auto; flex: 1; }
         @media (min-width: 768px) {
@@ -51,6 +52,10 @@
         {% elif resumen %}
         <section class="bg-white rounded-xl shadow p-5">
             <p class="font-medium mb-2">{{ ok }}</p>
+            {% if tarde %}
+            <p class="alert-error mb-3">Tu respuesta fue guardada. Diligenciaste el formulario un poco tarde. Escríbele por WhatsApp a tu coordinador que ya lo enviaste, para que pueda revisarlo y asignarte el turno. Gracias por tu comprensión.</p>
+            {% endif %}
+            <p class="text-sm mb-3" style="color:var(--muted)">Si quieres sumar o quitar un día, usa Cambiar. No lo envíes otra vez si esta lista está bien.</p>
             {% if cambio_antes is not none %}
             <p class="text-sm font-medium mt-2">Antes</p>
             {% if cambio_antes %}
@@ -98,6 +103,7 @@
                 </div>
             </section>
             <section class="hidden" id="pasoSem">
+                <p class="text-sm mb-3" style="color:var(--muted)">Lo que marques es lo que queda. Si ya enviaste, se abre con eso y puedes sumar o quitar.</p>
                 <label class="hueco bg-white">
                     <input type="checkbox" name="no_puedo" value="1" {% if no_puede %}checked{% endif %} id="noPuedo">
                     <span class="font-medium">Esta semana no puedo apoyar</span>
@@ -114,7 +120,7 @@
                             <p class="text-sm mb-2" style="color:var(--muted)">{{ s.etiqueta }}</p>
                             {% for c in s.roles %}
                             <label class="hueco mb-2">
-                                <input type="checkbox" name="hueco" value="{{ c.valor }}" {% if c.marcado %}checked{% endif %}>
+                                <input type="checkbox" name="hueco" value="{{ c.valor }}" data-texto="{{ f.dia }} {{ f.fecha }} · {{ s.etiqueta }} · {{ c.rol_txt }}" {% if c.marcado %}checked{% endif %}>
                                 <span>{{ c.rol_txt }}{% if c.libre %} · <span style="color:#d97706;font-weight:600">Libre</span>{% endif %}</span>
                             </label>
                             {% endfor %}
@@ -123,7 +129,16 @@
                     </div>
                     {% endfor %}
                 </div>
-                <button class="btn-primary w-full mt-3" id="btnGuardar" type="button">Guardar</button>
+                <button class="btn-primary w-full mt-3" id="btnRevisar" type="button">Revisar</button>
+            </section>
+            <section class="bg-white rounded-xl shadow p-5 hidden" id="pasoResumen">
+                <p class="font-medium mb-1">Vas a quedar con estos horarios</p>
+                <p class="text-sm mb-3" style="color:var(--muted)">Esta es la lista completa. Si falta un día, vuelve y márcalo.</p>
+                <ul id="listaResumen" class="text-sm space-y-1 mb-4"></ul>
+                <div class="flex gap-2">
+                    <button type="button" class="btn-ghost" id="btnVolver">Volver</button>
+                    <button class="btn-primary flex-1" id="btnGuardar" type="button">Enviar</button>
+                </div>
             </section>
         </form>
         {% endif %}
@@ -158,9 +173,20 @@
     fetch(location.pathname + "/revisar", {method:"POST", body:data}).then(function(r){ return r.json(); }).then(function(res){
       if (!res.ok) { err.textContent = res.error || "Revisa el celular"; err.classList.remove("hidden"); return; }
       err.classList.add("hidden");
-      document.querySelectorAll("#listaDias input[type=checkbox]").forEach(function(c){ c.checked = false; });
-      document.getElementById("noPuedo").checked = false;
-      document.getElementById("listaDias").style.display = "";
+      var mios = res.mios || [];
+      document.querySelectorAll("#listaDias input[type=checkbox]").forEach(function(c){
+        c.checked = mios.indexOf(c.value) !== -1;
+        var label = c.closest(".hueco");
+        if (label) label.classList.toggle("marcado", c.checked);
+      });
+      document.getElementById("noPuedo").checked = !!res.no_puede;
+      document.getElementById("listaDias").style.display = res.no_puede ? "none" : "";
+      document.querySelectorAll(".dia").forEach(function(dia){
+        var n = dia.querySelectorAll("input[type=checkbox]:checked").length;
+        var cuenta = dia.querySelector(".cuenta");
+        if (cuenta) cuenta.textContent = n ? n + (n === 1 ? " marcado" : " marcados") : "";
+        if (n) dia.classList.add("abierto");
+      });
       pasoCel.classList.add("hidden");
       if (res.existe) { pasoSem.classList.remove("hidden"); marca(1); }
       else { pasoNom.classList.remove("hidden"); marca(1); }
@@ -177,14 +203,37 @@
     pasoCel.classList.remove("hidden");
     marca(0);
   });
-  var guardar = document.getElementById("btnGuardar");
-  if (guardar) guardar.addEventListener("click", function(){
+  var revisar = document.getElementById("btnRevisar");
+  var resumen = document.getElementById("pasoResumen");
+  var listaResumen = document.getElementById("listaResumen");
+  if (revisar) revisar.addEventListener("click", function(){
     var noPuede = document.getElementById("noPuedo").checked;
-    var n = document.querySelectorAll("#listaDias input[type=checkbox]:checked").length;
-    if (!noPuede && !n) {
+    var marcados = Array.prototype.slice.call(document.querySelectorAll("#listaDias input[type=checkbox]:checked"));
+    if (!noPuede && !marcados.length) {
       alert("Marca al menos un horario. Si no puedes esta semana, marca esa opción.");
       return;
     }
+    listaResumen.innerHTML = "";
+    if (noPuede) {
+      listaResumen.innerHTML = "<li>Esta semana no puedes apoyar.</li>";
+    } else {
+      marcados.forEach(function(c){
+        var li = document.createElement("li");
+        li.textContent = c.getAttribute("data-texto") || c.value;
+        listaResumen.appendChild(li);
+      });
+    }
+    pasoSem.classList.add("hidden");
+    resumen.classList.remove("hidden");
+    marca(2);
+  });
+  document.getElementById("btnVolver").addEventListener("click", function(){
+    resumen.classList.add("hidden");
+    pasoSem.classList.remove("hidden");
+    marca(1);
+  });
+  var guardar = document.getElementById("btnGuardar");
+  if (guardar) guardar.addEventListener("click", function(){
     document.getElementById("paso").value = "guardar";
     form.submit();
   });
@@ -195,14 +244,20 @@
   document.querySelectorAll(".dia").forEach(function(dia){
     function cuenta(){
       var n = dia.querySelectorAll("input[type=checkbox]:checked").length;
-      dia.querySelector(".cuenta").textContent = n ? n + (n === 1 ? " horario" : " horarios") : "";
+      dia.querySelector(".cuenta").textContent = n ? n + (n === 1 ? " marcado" : " marcados") : "";
     }
     dia.querySelector(".abrir").addEventListener("click", function(){
       var abierto = dia.classList.contains("abierto");
       document.querySelectorAll(".dia").forEach(function(o){ o.classList.remove("abierto"); });
       if (!abierto) dia.classList.add("abierto");
     });
-    dia.querySelectorAll("input[type=checkbox]").forEach(function(c){ c.addEventListener("change", cuenta); });
+    dia.querySelectorAll("input[type=checkbox]").forEach(function(c){
+      c.addEventListener("change", function(){
+        var label = c.closest(".hueco");
+        if (label) label.classList.toggle("marcado", c.checked);
+        cuenta();
+      });
+    });
     cuenta();
   });
 })();

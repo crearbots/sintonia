@@ -265,7 +265,8 @@ header #theme-toggle {
   padding: 0 5px;
   font-weight: 700;
 }
-.nav-salir { color: #bfdbfe; }
+.nav-salir { color: #fca5a5; }
+.nav-salir:hover { color: #ef4444; }
 .bottom-nav { display: none; }
 .mas-sheet { display: none; }
 .mas-sheet.is-open { display: block; }
@@ -296,7 +297,50 @@ header #theme-toggle {
   color: var(--text);
   text-decoration: none;
 }
-.mas-salir { color: #ef4444; }
+.consulta-wrap { position: relative; }
+.consulta-drop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+  z-index: 50;
+}
+.consulta-drop a {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.consulta-drop a:hover { background: var(--bg-soft); }
+.alerta-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: var(--bg-soft);
+}
+.mas-panel button.mas-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 0.25rem;
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.mas-panel a.mas-salir,
+.mas-salir { color: #ef4444; font-weight: 700; }
 .site-footer {
   text-align: center;
   font-size: 0.75rem;

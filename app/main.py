@@ -123,6 +123,8 @@ def on_startup():
     db = next(get_db())
     create_default_user(db)
     obtener_config(db)
+    from .postulacion import sembrar_equipo
+    sembrar_equipo(db)
     db.close()
 
 
@@ -389,8 +391,12 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         barra_track = "bg-red-50"
 
     delg = request.session.get("delegacion") or "comunicaciones"
+    if delg == "sonido":
+        from .postulacion import generar_alertas_silencio
+        generar_alertas_silencio(db)
     alertas = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).order_by(Alerta.id.desc()).all()
     _vistas_cambio(db, alertas)
+    _vistas_silencio(db, alertas)
     request.session["n_alertas"] = len(alertas)
 
     return templates.TemplateResponse(
@@ -1596,12 +1602,14 @@ async def sonido_enlace(request: Request):
 
 
 @app.get("/postulaciones", response_class=HTMLResponse)
-async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok: str = "", error: str = "", modo: str = "confirmar"):
-    from .models import AusenciaSemana, Postulacion
-    from .postulacion import clave_vigente, texto_plantilla
+async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok: str = "", error: str = "", modo: str = "confirmar", q: str = "", filtro: str = "todos", alta: str = "", ver: int = 0):
+    from .models import AusenciaSemana, EquipoSonido, Postulacion
+    from .postulacion import clave_vigente, generar_alertas_silencio, semanas_en_silencio, sembrar_equipo, texto_plantilla
     user, redir = _sonido_ok(request)
     if redir:
         return redir
+    sembrar_equipo(db)
+    generar_alertas_silencio(db)
     lunes = semana_vigente()
     clave = clave_vigente(db, "sonido")
     base = str(request.base_url).rstrip("/")
@@ -1643,11 +1651,98 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
     postulados.sort(key=lambda x: (x["fecha"], x["horario"], x["rol"]))
     no_pueden = [personas.get(a.persona_id) for a in ausencias]
     no_pueden = [p for p in no_pueden if p]
+    respondieron = {p.persona_id for p in posts} | {a.persona_id for a in ausencias}
+    equipo = db.query(EquipoSonido).filter(EquipoSonido.activo == True).all()
+    ids_equipo = {r.persona_id for r in equipo}
+    gente_equipo = {p.id: p for p in db.query(Persona).filter(Persona.id.in_(ids_equipo)).all()} if ids_equipo else {}
+    sin_indicar = []
+    for row in equipo:
+        if row.persona_id in respondieron:
+            continue
+        per = gente_equipo.get(row.persona_id)
+        if not per:
+            continue
+        cerradas = semanas_en_silencio(db, row.persona_id, row.desde, lunes)
+        sin_indicar.append({
+            "id": per.id, "nombre": per.nombre,
+            "semanas": cerradas,
+        })
+    sin_indicar.sort(key=lambda x: (-x["semanas"], (x["nombre"] or "").lower()))
+    no_pueden_ids = {a.persona_id for a in ausencias}
+    postularon_ids = {p.persona_id for p in posts}
+    miembros = []
+    for row in equipo:
+        per = gente_equipo.get(row.persona_id)
+        if not per:
+            continue
+        if row.persona_id in postularon_ids:
+            estado = "Postuló"
+            semanas = 0
+        elif row.persona_id in no_pueden_ids:
+            estado = "No puede"
+            semanas = 0
+        else:
+            estado = "No indicó"
+            semanas = semanas_en_silencio(db, row.persona_id, row.desde, lunes)
+        miembros.append({"id": per.id, "nombre": per.nombre, "estado": estado, "semanas": semanas})
+    miembros.sort(key=lambda p: (p["estado"] != "No indicó", (p["nombre"] or "").lower()))
+    indicaron = sum(1 for p in miembros if p["estado"] != "No indicó")
+    filtro = filtro if filtro in ("todos", "no", "si") else "todos"
+    if filtro == "no":
+        lista = [p for p in miembros if p["estado"] == "No indicó"]
+    elif filtro == "si":
+        lista = [p for p in miembros if p["estado"] != "No indicó"]
+    else:
+        lista = list(miembros)
+    q = (q or "").strip()
+    ver_id = ver or None
+    if q:
+        from .processing import normalizar_celular
+        import re
+        digitos = re.sub(r"\D", "", q)
+        if len(digitos) >= 12 and digitos.startswith("57"):
+            digitos = digitos[2:]
+        exacto = normalizar_celular(q)
+        texto = q.lower()
+        def coincide(p):
+            per = gente_equipo.get(p["id"])
+            cel = (per.celular or "") if per else ""
+            if exacto and cel == exacto:
+                return True
+            if digitos and digitos in cel:
+                return True
+            return texto in (p["nombre"] or "").lower()
+        lista = [p for p in lista if coincide(p)]
+        if len(lista) == 1:
+            ver_id = lista[0]["id"]
+    alta = (alta or "").strip()
+    alta_estado = ""
+    alta_persona = None
+    alta_cel = ""
+    if alta:
+        from .processing import normalizar_celular
+        alta_cel = normalizar_celular(alta) or ""
+        if not alta_cel:
+            alta_estado = "invalido"
+        else:
+            hallada = db.query(Persona).filter(Persona.celular == alta_cel).first()
+            if hallada and hallada.id in ids_equipo:
+                alta_estado = "ya"
+                alta_persona = {"id": hallada.id, "nombre": hallada.nombre}
+                ver_id = hallada.id
+            elif hallada:
+                alta_estado = "candidato"
+                alta_persona = {"id": hallada.id, "nombre": hallada.nombre}
+            else:
+                alta_estado = "nueva"
     return templates.TemplateResponse(request, "postulaciones.html", {
         "user": user, "ok": ok, "error": error, "enlace": enlace, "clave_mes": clave.clave,
         "plantilla": texto_plantilla(clave, enlace), "postulados": postulados, "no_pueden": no_pueden,
         "lunes": lunes, "domingo": lunes + __import__("datetime").timedelta(days=6),
-        "modo": "link" if modo == "link" else "confirmar",
+        "modo": modo if modo in ("link", "equipo", "confirmar") else "confirmar",
+        "sin_indicar": sin_indicar, "miembros": miembros, "lista": lista, "indicaron": indicaron,
+        "q": q, "filtro": filtro, "ver": ver_id, "alta": alta, "alta_estado": alta_estado,
+        "alta_persona": alta_persona, "alta_cel": alta_cel,
     })
 
 
@@ -1682,6 +1777,105 @@ def _enlace_sonido(db, token: str):
     if clave.token != token:
         return None
     return clave
+
+
+def _vistas_silencio(db, alertas) -> None:
+    from .models import Persona
+    for alerta in alertas:
+        alerta.silencio = None
+        if not (alerta.tipo or "").startswith("silencio|"):
+            continue
+        partes = alerta.tipo.split("|")
+        if len(partes) < 3:
+            continue
+        try:
+            pid = int(partes[2])
+        except ValueError:
+            continue
+        per = db.query(Persona).filter(Persona.id == pid).first()
+        alerta.silencio = {
+            "persona_id": pid,
+            "nombre": per.nombre if per else "Colaborador",
+            "celular": per.celular if per else "",
+        }
+
+
+@app.post("/programacion/sonido/equipo")
+async def sonido_equipo(
+    request: Request, db: Session = Depends(get_db),
+    persona_id: int = Form(0), accion: str = Form(...),
+    nombre: str = Form(""), celular: str = Form(""), ajax: str = Form(""),
+):
+    from .models import EquipoSonido
+    from .postulacion import asegurar_equipo
+    from .processing import normalizar_celular, normalizar_nombre
+    from fastapi.responses import JSONResponse
+    user, redir = _sonido_ok(request)
+    if redir:
+        return JSONResponse({"ok": False, "error": "Sesión vencida"}) if ajax == "1" else redir
+    if accion == "crear":
+        cel = normalizar_celular(celular)
+        nom = normalizar_nombre(nombre)
+        if not cel:
+            return RedirectResponse(url="/postulaciones?modo=equipo&error=El+celular+debe+tener+10+dígitos", status_code=303)
+        if not nom:
+            return RedirectResponse(url=f"/postulaciones?modo=equipo&alta={cel}&error=Escribe+el+nombre", status_code=303)
+        per = db.query(Persona).filter(Persona.celular == cel).first()
+        if not per:
+            per = Persona(nombre=nom, celular=cel, estado="No instalada", pendiente_revision=False, fuente_ultima="Alta Sonido")
+            db.add(per)
+            db.commit()
+            db.refresh(per)
+            db.add(Alerta(
+                para_delegacion="comunicaciones", tipo="alta_nueva",
+                texto=f"Persona nueva desde el equipo de Sonido: {nom} ({cel}). Revisar si ya tiene la App.",
+                leida=False,
+            ))
+        asegurar_equipo(db, per.id)
+        db.commit()
+        return RedirectResponse(url=f"/postulaciones?modo=equipo&ok=Agregado+al+equipo&ver={per.id}", status_code=303)
+    if accion == "agregar":
+        if not db.query(Persona).filter(Persona.id == persona_id).first():
+            return RedirectResponse(url="/postulaciones?modo=equipo&error=No+existe", status_code=303)
+        asegurar_equipo(db, persona_id)
+        db.commit()
+        return RedirectResponse(url=f"/postulaciones?modo=equipo&ok=Agregado+al+equipo&ver={persona_id}", status_code=303)
+    row = db.query(EquipoSonido).filter(EquipoSonido.persona_id == persona_id, EquipoSonido.activo == True).first()
+    if row:
+        row.activo = False
+        db.commit()
+    if ajax == "1":
+        return JSONResponse({"ok": True})
+    return RedirectResponse(url="/postulaciones?modo=equipo&ok=Salio+del+equipo", status_code=303)
+
+
+@app.post("/programacion/sonido/silencio")
+async def sonido_silencio(
+    request: Request, db: Session = Depends(get_db),
+    alerta_id: int = Form(...), accion: str = Form(...),
+):
+    from .models import EquipoSonido
+    user, redir = _sonido_ok(request)
+    if redir:
+        return redir
+    alerta = db.query(Alerta).filter(
+        Alerta.id == alerta_id, Alerta.para_delegacion == "sonido", Alerta.tipo.like("silencio|%"),
+    ).first()
+    if not alerta:
+        return RedirectResponse(url="/dashboard", status_code=303)
+    if accion == "sacar":
+        partes = alerta.tipo.split("|")
+        try:
+            pid = int(partes[2])
+        except (IndexError, ValueError):
+            pid = None
+        if pid:
+            row = db.query(EquipoSonido).filter(EquipoSonido.persona_id == pid, EquipoSonido.activo == True).first()
+            if row:
+                row.activo = False
+    alerta.leida = True
+    db.commit()
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 
 def _vistas_cambio(db, alertas) -> None:
@@ -1752,12 +1946,12 @@ def _postular_abierto(request: Request, token: str, clave) -> bool:
 
 
 @app.get("/postular/{token}", response_class=HTMLResponse)
-async def postular_ver(request: Request, token: str, db: Session = Depends(get_db), error: str = "", ok: str = "", cambiar: str = ""):
+async def postular_ver(request: Request, token: str, db: Session = Depends(get_db), error: str = "", ok: str = "", cambiar: str = "", tarde: str = ""):
     clave = _enlace_sonido(db, token)
     if not clave:
         return templates.TemplateResponse(request, "postular.html", {"invalido": True})
     abierto = _postular_abierto(request, token, clave)
-    ctx = {"invalido": False, "token": token, "abierto": abierto, "error": error, "ok": ok, "filas": [], "mios": set(), "no_puede": False, "resumen": False, "lineas": [], "cambio_antes": None, "cambio_ahora": [], "cambio_no_puede": False}
+    ctx = {"invalido": False, "token": token, "abierto": abierto, "error": error, "ok": ok, "filas": [], "mios": set(), "no_puede": False, "resumen": False, "lineas": [], "cambio_antes": None, "cambio_ahora": [], "cambio_no_puede": False, "tarde": tarde == "1"}
     if abierto:
         from .festivos import es_festivo
         from .models import AusenciaSemana, Postulacion
@@ -1835,7 +2029,34 @@ async def postular_revisar(
     if not cel or cel != cel2:
         return {"ok": False, "error": "Los dos celulares deben coincidir y tener 10 dígitos"}
     per = db.query(Persona).filter(Persona.celular == cel).first()
-    return {"ok": True, "existe": bool(per), "nombre": per.nombre if per else ""}
+    mios = []
+    no_puede = False
+    if per:
+        from .models import AusenciaSemana, Postulacion
+        lunes = semana_vigente()
+        no_puede = db.query(AusenciaSemana).filter(
+            AusenciaSemana.persona_id == per.id, AusenciaSemana.labor == "sonido", AusenciaSemana.semana_lunes == lunes,
+        ).first() is not None
+        mios = [
+            f"{p.fecha.isoformat()}|{p.horario}|{p.rol}"
+            for p in db.query(Postulacion).filter(
+                Postulacion.persona_id == per.id, Postulacion.labor == "sonido", Postulacion.semana_lunes == lunes,
+            ).all()
+        ]
+    return {"ok": True, "existe": bool(per), "nombre": per.nombre if per else "", "mios": mios, "no_puede": no_puede}
+
+
+def _ok_postular(no_puedo) -> str:
+    from urllib.parse import quote
+    base = "Quedó guardado. Esta semana no puedes apoyar" if no_puedo else "Quedó guardado. No necesitas enviarlo otra vez"
+    return quote(base)
+
+
+def _tarde_domingo() -> bool:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    ahora = datetime.now(ZoneInfo("America/Bogota"))
+    return ahora.weekday() == 6 and ahora.hour >= 14
 
 
 @app.post("/postular/{token}")
@@ -1895,6 +2116,9 @@ async def postular_guardar(
             leida=False,
         ))
         db.commit()
+    from .postulacion import asegurar_equipo
+    asegurar_equipo(db, per.id)
+    db.commit()
     request.session["postular_persona"] = per.id
     lunes = semana_vigente()
     huecos = []
@@ -1917,7 +2141,30 @@ async def postular_guardar(
             status_code=303,
         )
     if tiene_semana(db, per.id, lunes):
-        from .models import CambioPostulacion
+        from .models import AusenciaSemana, CambioPostulacion
+        ya_no = db.query(AusenciaSemana).filter(
+            AusenciaSemana.persona_id == per.id, AusenciaSemana.labor == "sonido", AusenciaSemana.semana_lunes == lunes,
+        ).first() is not None
+        actuales = {
+            (p.fecha, p.horario, p.rol)
+            for p in postulaciones_persona(db, per.id, lunes)
+        }
+        iguales = (bool(no_puedo) and ya_no) or (not no_puedo and not ya_no and set(huecos) == actuales)
+        if iguales:
+            cambio = db.query(CambioPostulacion).filter(
+                CambioPostulacion.persona_id == per.id,
+                CambioPostulacion.labor == "sonido",
+                CambioPostulacion.semana_lunes == lunes,
+                CambioPostulacion.estado == "pendiente",
+            ).first()
+            if cambio:
+                db.query(Alerta).filter(Alerta.tipo == f"cambio-{cambio.id}").update({"leida": True})
+                cambio.estado = "sin-cambio"
+                db.commit()
+            return RedirectResponse(
+                url=f"/postular/{token}?ok=" + __import__("urllib.parse", fromlist=["quote"]).quote("Solicitaste los mismos horarios de antes, así que no hay cambios en tu postulación") + ("&tarde=1" if _tarde_domingo() else ""),
+                status_code=303,
+            )
         detalle = "no-puede" if no_puedo else ";".join(f"{f.isoformat()}|{h}|{rol}" for f, h, rol in huecos)
         cambio = db.query(CambioPostulacion).filter(
             CambioPostulacion.persona_id == per.id,
@@ -1943,11 +2190,9 @@ async def postular_guardar(
         else:
             db.add(Alerta(para_delegacion="sonido", tipo=tipo, leida=False, texto=texto))
         db.commit()
-        return RedirectResponse(url=f"/postular/{token}?ok=Quedó+enviado.+El+coordinador+confirma+el+cambio", status_code=303)
+        return RedirectResponse(url=f"/postular/{token}?ok=" + _ok_postular(no_puedo) + ("&tarde=1" if _tarde_domingo() else ""), status_code=303)
     aplicar_semana(db, per.id, lunes, huecos, bool(no_puedo))
-    if no_puedo:
-        return RedirectResponse(url=f"/postular/{token}?ok=Quedó+registrado+que+esta+semana+no+puedes+apoyar", status_code=303)
-    return RedirectResponse(url=f"/postular/{token}?ok=Estos+son+los+horarios+que+marcaste", status_code=303)
+    return RedirectResponse(url=f"/postular/{token}?ok=" + _ok_postular(no_puedo) + ("&tarde=1" if _tarde_domingo() else ""), status_code=303)
 
 
 @app.post("/programacion/sonido/cambio")
@@ -2258,6 +2503,7 @@ async def alertas_leer(request: Request, db: Session = Depends(get_db)):
         Alerta.para_delegacion == delg,
         Alerta.leida == False,
         ~Alerta.tipo.like("cambio-%"),
+        ~Alerta.tipo.like("silencio|%"),
     ).update({"leida": True}, synchronize_session=False)
     db.commit()
     request.session["n_alertas"] = 0
