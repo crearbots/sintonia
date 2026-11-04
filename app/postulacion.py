@@ -192,6 +192,8 @@ def generar_alertas_silencio(db: Session) -> None:
         return
     abierta = lunes_de(hoy)
     for row in db.query(EquipoSonido).filter(EquipoSonido.activo == True).all():
+        if row.es_coordinador:
+            continue
         n = semanas_en_silencio(db, row.persona_id, row.desde, abierta)
         for umbral in (4, 8):
             if n < umbral:
@@ -202,10 +204,14 @@ def generar_alertas_silencio(db: Session) -> None:
                 continue
             per = db.query(Persona).filter(Persona.id == row.persona_id).first()
             nombre = per.nombre if per else "Un colaborador"
+            if umbral == 4:
+                texto = f"{nombre} lleva 4 semanas sin diligenciar el formulario. Contáctalo para preguntarle cómo está y si sigue disponible."
+            else:
+                texto = f"{nombre} lleva 8 semanas sin diligenciar el formulario. Puedes sacarlo del equipo si ya no va a participar."
             db.add(Alerta(
                 para_delegacion="sonido",
                 tipo=tipo,
-                texto=f"{nombre} lleva {umbral} semanas sin diligenciar el formulario de Sonido.",
+                texto=texto,
                 leida=False,
             ))
     db.commit()

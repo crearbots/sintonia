@@ -5,7 +5,6 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-import secrets
 import os
 import tempfile
 from pathlib import Path
@@ -21,6 +20,7 @@ from .auth import (
     DELEGACIONES,
     hash_password,
 )
+from .csrf import CSRFMiddleware
 from .punto import semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario, NOMBRES_DIA, obtener_config, dia_permitido, punto_apagado_para, generar_alertas_festivo, generar_alertas_domingo, ranking_anio
 from .festivos import es_festivo
 from .processing import procesar_excel, FUENTES_VALIDAS, FUENTE_PRESENCIAL_ANTERIOR, nombre_fuente, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
@@ -34,7 +34,11 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Sintonía", docs_url=None, redoc_url=None)
 
 # Middleware de sesión (clave fija desde variable de entorno en producción)
-SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("Falta SECRET_KEY en las variables de entorno")
+# CSRF por dentro, sesión por fuera (la sesión debe existir antes de validar)
+app.add_middleware(CSRFMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 # Archivos estáticos (crea la carpeta si no existe)
@@ -117,6 +121,11 @@ def on_startup():
                 if cfgcols and col not in cfgcols:
                     conn.execute(sql_text(f"ALTER TABLE config_punto ADD COLUMN {col} VARCHAR(60) DEFAULT ''"))
                     conn.commit()
+            ecols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(equipo_sonido)")).fetchall()]
+            if ecols and "es_coordinador" not in ecols:
+                conn.execute(sql_text("ALTER TABLE equipo_sonido ADD COLUMN es_coordinador BOOLEAN DEFAULT 0"))
+                conn.commit()
+                print("Columna equipo_sonido.es_coordinador agregada")
     except Exception as e:
         print(f"Migración: {e}")
 
@@ -1657,7 +1666,7 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
     gente_equipo = {p.id: p for p in db.query(Persona).filter(Persona.id.in_(ids_equipo)).all()} if ids_equipo else {}
     sin_indicar = []
     for row in equipo:
-        if row.persona_id in respondieron:
+        if row.es_coordinador or row.persona_id in respondieron:
             continue
         per = gente_equipo.get(row.persona_id)
         if not per:
@@ -1681,17 +1690,20 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
         elif row.persona_id in no_pueden_ids:
             estado = "No puede"
             semanas = 0
+        elif row.es_coordinador:
+            estado = "Coordinador"
+            semanas = 0
         else:
             estado = "No indicó"
             semanas = semanas_en_silencio(db, row.persona_id, row.desde, lunes)
-        miembros.append({"id": per.id, "nombre": per.nombre, "estado": estado, "semanas": semanas})
+        miembros.append({"id": per.id, "nombre": per.nombre, "estado": estado, "semanas": semanas, "coordinador": bool(row.es_coordinador)})
     miembros.sort(key=lambda p: (p["estado"] != "No indicó", (p["nombre"] or "").lower()))
-    indicaron = sum(1 for p in miembros if p["estado"] != "No indicó")
+    indicaron = sum(1 for p in miembros if p["estado"] in ("Postuló", "No puede"))
     filtro = filtro if filtro in ("todos", "no", "si") else "todos"
     if filtro == "no":
         lista = [p for p in miembros if p["estado"] == "No indicó"]
     elif filtro == "si":
-        lista = [p for p in miembros if p["estado"] != "No indicó"]
+        lista = [p for p in miembros if p["estado"] in ("Postuló", "No puede")]
     else:
         lista = list(miembros)
     q = (q or "").strip()
@@ -1789,6 +1801,7 @@ def _vistas_silencio(db, alertas) -> None:
         if len(partes) < 3:
             continue
         try:
+            umbral = int(partes[1])
             pid = int(partes[2])
         except ValueError:
             continue
@@ -1797,6 +1810,7 @@ def _vistas_silencio(db, alertas) -> None:
             "persona_id": pid,
             "nombre": per.nombre if per else "Colaborador",
             "celular": per.celular if per else "",
+            "umbral": umbral,
         }
 
 
@@ -1841,9 +1855,15 @@ async def sonido_equipo(
         db.commit()
         return RedirectResponse(url=f"/postulaciones?modo=equipo&ok=Agregado+al+equipo&ver={persona_id}", status_code=303)
     row = db.query(EquipoSonido).filter(EquipoSonido.persona_id == persona_id, EquipoSonido.activo == True).first()
-    if row:
-        row.activo = False
+    if not row:
+        return RedirectResponse(url="/postulaciones?modo=equipo&error=No+está+en+el+equipo", status_code=303)
+    if accion == "coordinador":
+        row.es_coordinador = not bool(row.es_coordinador)
         db.commit()
+        msg = "Ahora+es+coordinador" if row.es_coordinador else "Ya+no+es+coordinador"
+        return RedirectResponse(url=f"/postulaciones?modo=equipo&ok={msg}&ver={persona_id}", status_code=303)
+    row.activo = False
+    db.commit()
     if ajax == "1":
         return JSONResponse({"ok": True})
     return RedirectResponse(url="/postulaciones?modo=equipo&ok=Salio+del+equipo", status_code=303)

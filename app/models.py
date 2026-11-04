@@ -168,6 +168,7 @@ class EquipoSonido(Base):
     persona_id = Column(Integer, nullable=False, unique=True, index=True)
     desde = Column(Date, nullable=False)
     activo = Column(Boolean, default=True, nullable=False)
+    es_coordinador = Column(Boolean, default=False, nullable=False)
 
 
 class AusenciaSemana(Base):

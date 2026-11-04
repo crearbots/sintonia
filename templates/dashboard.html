@@ -55,12 +55,14 @@
                             <button name="accion" value="enterado" class="btn-primary text-sm">Enterado</button>
                         </form>
                         {% if a.silencio.celular %}
-                        <a href="https://wa.me/57{{ a.silencio.celular }}" target="_blank" rel="noopener" class="btn-success text-sm">Escribir por WhatsApp</a>
+                        <a href="https://wa.me/57{{ a.silencio.celular }}" target="_blank" rel="noopener" class="btn-success text-sm">Contactar</a>
                         {% endif %}
+                        {% if a.silencio.umbral == 8 %}
                         <form method="post" action="/programacion/sonido/silencio" onsubmit="return confirm('¿Sacar a {{ a.silencio.nombre }} del equipo de Sonido?')">
                             <input type="hidden" name="alerta_id" value="{{ a.id }}">
                             <button name="accion" value="sacar" class="btn-danger text-sm">Sacar del equipo</button>
                         </form>
+                        {% endif %}
                     </div>
                 </div>
                 {% else %}

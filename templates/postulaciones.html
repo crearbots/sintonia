@@ -180,18 +180,25 @@
                 {% for p in lista %}
                 <div id="persona-{{ p.id }}" class="alerta-card flex items-center justify-between gap-3 {% if ver == p.id %}ring-2 ring-amber-400{% endif %}" data-estado="{{ p.estado }}">
                     <div class="min-w-0">
-                        <p class="text-sm font-medium m-0 truncate">{{ p.nombre }}</p>
+                        <p class="text-sm font-medium m-0 truncate">{{ p.nombre }}{% if p.coordinador %} <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs ml-1">Coordinador</span>{% endif %}</p>
                         <p class="text-xs m-0 mt-1">
-                            <span class="px-2 py-0.5 rounded-full {% if p.estado == 'Postuló' %}bg-green-100 text-green-800{% elif p.estado == 'No puede' %}bg-amber-100 text-amber-800{% else %}bg-slate-200 text-slate-700{% endif %}">{{ p.estado }}</span>
+                            <span class="px-2 py-0.5 rounded-full {% if p.estado == 'Postuló' %}bg-green-100 text-green-800{% elif p.estado == 'No puede' %}bg-amber-100 text-amber-800{% elif p.estado == 'Coordinador' %}bg-blue-100 text-blue-800{% else %}bg-slate-200 text-slate-700{% endif %}">{{ p.estado }}</span>
                             {% if p.semanas %}<span class="ml-1" style="color:var(--muted)">{{ p.semanas }} {{ 'semana' if p.semanas == 1 else 'semanas' }} sin diligenciar</span>{% endif %}
                         </p>
                     </div>
-                    <form method="post" action="/programacion/sonido/equipo" class="js-sacar" data-confirma="¿Sacar a {{ p.nombre }} del equipo?">
-                        <input type="hidden" name="persona_id" value="{{ p.id }}">
-                        <input type="hidden" name="accion" value="sacar">
-                        <input type="hidden" name="ajax" value="1">
-                        <button class="btn-danger text-sm">Sacar</button>
-                    </form>
+                    <div class="flex gap-2 shrink-0">
+                        <form method="post" action="/programacion/sonido/equipo">
+                            <input type="hidden" name="persona_id" value="{{ p.id }}">
+                            <input type="hidden" name="accion" value="coordinador">
+                            <button class="btn-ghost text-sm">{% if p.coordinador %}Quitar coordinador{% else %}Hacer coordinador{% endif %}</button>
+                        </form>
+                        <form method="post" action="/programacion/sonido/equipo" class="js-sacar" data-confirma="¿Sacar a {{ p.nombre }} del equipo?">
+                            <input type="hidden" name="persona_id" value="{{ p.id }}">
+                            <input type="hidden" name="accion" value="sacar">
+                            <input type="hidden" name="ajax" value="1">
+                            <button class="btn-danger text-sm">Sacar</button>
+                        </form>
+                    </div>
                 </div>
                 {% endfor %}
             </div>

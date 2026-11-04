@@ -4,8 +4,10 @@ from fastapi import Request
 from sqlalchemy.orm import Session
 from .models import Usuario
 
-DEFAULT_USER = os.getenv("APP_USER", "gestion")
-DEFAULT_PASSWORD = os.getenv("APP_PASSWORD", "infomira2026")
+DEFAULT_USER = os.getenv("APP_USER")
+DEFAULT_PASSWORD = os.getenv("APP_PASSWORD")
+if not DEFAULT_USER or not DEFAULT_PASSWORD:
+    raise RuntimeError("Faltan APP_USER y APP_PASSWORD en las variables de entorno")
 
 DELEGACIONES = (
     "comunicaciones",
@@ -60,17 +62,6 @@ def create_default_user(db: Session):
     if not verify_password(DEFAULT_PASSWORD, user.password_hash):
         user.password_hash = hash_password(DEFAULT_PASSWORD)
         print(f"Contraseña actualizada para: {DEFAULT_USER}")
-    principal = db.query(Usuario).filter(Usuario.usuario == "comunicaciones").first()
-    cuentas_com = db.query(Usuario).filter(Usuario.delegacion == "comunicaciones").all()
-    if principal:
-        extras = [c for c in cuentas_com if c.usuario != "comunicaciones"]
-    elif len(cuentas_com) > 1:
-        extras = [c for c in cuentas_com if c.usuario == "admin"]
-    else:
-        extras = []
-    for extra in extras:
-        db.delete(extra)
-        print(f"Usuario de Comunicaciones duplicado retirado: {extra.usuario}")
     db.commit()
 
 

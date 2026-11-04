@@ -98,7 +98,7 @@ Fuente de verdad: GitHub, rama **`master`**. Un push a `master` dispara el deplo
 
 ## Versiones
 
-Los cortes estables están en los [tags](https://github.com/crearbots/sintonia/tags). Último: **v1.14.0**.
+Los cortes estables están en los [tags](https://github.com/crearbots/sintonia/tags). Último: **v1.17.0**.
 
 | Tag | Resumen |
 | --- | --- |
@@ -115,6 +115,8 @@ Los cortes estables están en los [tags](https://github.com/crearbots/sintonia/t
 | v1.11.0 | Meta 975 y menú híbrido |
 | v1.13.0 | Foto de programación para WhatsApp y festivo en Sonido |
 | v1.14.0 | Turnos sugeridos en Sonido, fuente del punto, foto en celular y pie en todas las pantallas |
+| v1.15.0 a v1.16.0 | Cortes intermedios de programación y equipo de Sonido |
+| v1.17.0 | Equipo de Sonido, resumen antes de enviar la postulación y sin alerta si no hay cambios |
 
 ## Privacidad
 

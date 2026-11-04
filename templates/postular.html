@@ -170,6 +170,8 @@
     var data = new FormData();
     data.append("celular", document.getElementById("celular").value);
     data.append("celular2", document.getElementById("celular2").value);
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    if (csrf) data.append("csrf_token", csrf.content);
     fetch(location.pathname + "/revisar", {method:"POST", body:data}).then(function(r){ return r.json(); }).then(function(res){
       if (!res.ok) { err.textContent = res.error || "Revisa el celular"; err.classList.remove("hidden"); return; }
       err.classList.add("hidden");
