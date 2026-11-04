@@ -1,19 +1,8 @@
-<!DOCTYPE html>
-<html lang="es" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editar persona - Sintonía</title>
-    {% include "_head_icons.html" %}
-    <link rel="stylesheet" href="/static/css/theme.css">
-    <script src="/static/js/theme.js"></script>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 min-h-screen">
-    {% set activo = 'personas' %}
-    {% include "_nav.html" %}
-    <main class="max-w-lg mx-auto px-3 sm:px-4 py-4 sm:py-8">
+{% extends "_base.html" %}
+{% set activo = "personas" %}
+{% block title %}Editar persona - Sintonía{% endblock %}
+{% block content %}
+<main class="max-w-lg mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <a href="/personas?estado=todos" class="text-blue-600 hover:underline text-sm">← Volver a Personas</a>
         <h2 class="text-2xl font-semibold text-gray-800 mt-2">Editar persona</h2>
         <p class="text-gray-600 text-sm mb-4">Corrige nombre, celular o estado. El celular no puede repetirse en otro registro.</p>
@@ -48,6 +37,4 @@
             </form>
         </div>
     </main>
-    {% include "_footer.html" %}
-</body>
-</html>
+{% endblock %}

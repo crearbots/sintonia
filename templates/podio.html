@@ -1,18 +1,8 @@
-<!DOCTYPE html>
-<html lang="es" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Podio - Sintonía</title>
-    {% include "_head_icons.html" %}
-    <link rel="stylesheet" href="/static/css/theme.css">
-    <script src="/static/js/theme.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 min-h-screen">
-    {% set activo = "podio" %}
-    {% include "_nav.html" %}
-    <main class="max-w-4xl mx-auto px-4 py-8">
+{% extends "_base.html" %}
+{% set activo = "podio" %}
+{% block title %}Podio - Sintonía{% endblock %}
+{% block content %}
+<main class="max-w-7xl mx-auto px-4 py-8">
         <p class="text-center mb-2"><a href="/programacion" class="text-blue-600 text-sm">← Programación</a></p>
         <p class="text-center text-xs tracking-[0.25em] uppercase mb-1" style="color:var(--muted)">Colaboradores del año {{ anio }}</p>
         <h1 class="text-3xl font-bold text-center mb-2">Podio Sintonía</h1>
@@ -73,6 +63,4 @@
             {% endfor %}
         </ol>
     </main>
-    {% include "_footer.html" %}
-</body>
-</html>
+{% endblock %}

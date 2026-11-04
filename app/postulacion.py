@@ -1,7 +1,7 @@
 """Reglas del enlace de postulación. Sin pantallas: las usa la fase 2."""
 
 import secrets
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,50 @@ def _clave_corta() -> str:
 
 def _token() -> str:
     return secrets.token_urlsafe(9)
+
+
+# Sesión del enlace público. Solo guarda que el enlace está abierto,
+# no la clave. Sirve para Sonido y para el mismo flujo en Baños.
+def enlace_abierto(request, token: str) -> bool:
+    return request.session.get("enlace_ok") == token
+
+
+def enlace_abrir(request, token: str) -> None:
+    request.session["enlace_ok"] = token
+    request.session["enlace_fallos"] = 0
+
+
+def enlace_persona(request) -> int | None:
+    return request.session.get("enlace_persona")
+
+
+def enlace_persona_set(request, persona_id: int) -> None:
+    request.session["enlace_persona"] = persona_id
+
+
+def enlace_bloqueado(request) -> str | None:
+    """Si hay bloqueo vigente, devuelve el mensaje. Si no, None."""
+    hasta = request.session.get("enlace_bloqueo")
+    if not hasta:
+        return None
+    try:
+        if datetime.fromisoformat(hasta) > datetime.now():
+            return "Demasiados intentos. Espera 15 minutos"
+    except ValueError:
+        pass
+    request.session.pop("enlace_bloqueo", None)
+    return None
+
+
+def enlace_fallo(request) -> str | None:
+    """Registra un intento fallido. Devuelve el error si hay que bloquear."""
+    fallos = int(request.session.get("enlace_fallos") or 0) + 1
+    request.session["enlace_fallos"] = fallos
+    if fallos >= 3:
+        request.session["enlace_bloqueo"] = (datetime.now() + timedelta(minutes=15)).isoformat(timespec="seconds")
+        request.session["enlace_fallos"] = 0
+        return "Demasiados intentos. Espera 15 minutos"
+    return None
 
 
 PLANTILLA_BASE = (

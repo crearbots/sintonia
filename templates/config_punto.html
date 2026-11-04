@@ -1,14 +1,8 @@
-<!DOCTYPE html>
-<html lang="es" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Punto de información - Sintonía</title>
-    {% include "_head_icons.html" %}
-    <link rel="stylesheet" href="/static/css/theme.css">
-    <script src="/static/js/theme.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
+{% extends "_base.html" %}
+{% set activo = "config" %}
+{% block title %}Punto de información - Sintonía{% endblock %}
+{% block head %}
+<style>
         .cfg-grid { display: grid; gap: 16px; }
         @media (min-width: 900px) {
             .cfg-grid { grid-template-columns: 1.1fr .9fr; align-items: start; }
@@ -27,11 +21,9 @@
         .cfg-input { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
         .aviso-baja { border: 1px solid var(--warning); border-radius: 12px; padding: 12px; background: var(--bg-soft); }
     </style>
-</head>
-<body class="bg-gray-100 min-h-screen">
-    {% set activo = "config" %}
-    {% include "_nav.html" %}
-    <main class="max-w-5xl mx-auto px-4 py-6">
+{% endblock %}
+{% block content %}
+<main class="max-w-7xl mx-auto px-4 py-6">
         <h1 class="text-2xl font-semibold mb-1">Calendario del punto</h1>
         <p class="text-sm mb-4" style="color:var(--muted)">Tres cosas: qué días se programa, si se comparte la hora con FIMLM, y qué labor sale en la foto.</p>
         {% if ok %}<p class="mb-3 text-sm" style="color:var(--success)">{{ ok }}</p>{% endif %}
@@ -104,6 +96,4 @@
             {% endfor %}
         </section>
     </main>
-    {% include "_footer.html" %}
-</body>
-</html>
+{% endblock %}

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sintonía{% endblock %}</title>
+    {% include "_head_icons.html" %}
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% block nav %}
+    {% include "_nav.html" %}
+    {% endblock %}
+    {% block content %}{% endblock %}
+    {% include "_footer.html" %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

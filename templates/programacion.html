@@ -1,14 +1,8 @@
-<!DOCTYPE html>
-<html lang="es" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Programación - Sintonía</title>
-    {% include "_head_icons.html" %}
-    <link rel="stylesheet" href="/static/css/theme.css">
-    <script src="/static/js/theme.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+{% extends "_base.html" %}
+{% set activo = "programacion" %}
+{% block title %}Programación - Sintonía{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         .foto-wa { width: 100%; margin: 0 auto; background: #f8fafc; color: #0f172a; border-radius: 16px; padding: 16px; }
         .foto-titulo { margin: 0; font-size: 22px; font-weight: 800; }
@@ -54,11 +48,9 @@
             .leyenda-pantalla { flex-direction: column; flex-wrap: wrap; align-content: flex-start; align-items: flex-start; max-height: 78px; gap: 6px 16px; }
         }
     </style>
-</head>
-<body class="bg-gray-100 min-h-screen">
-    {% set activo = "programacion" %}
-    {% include "_nav.html" %}
-    <main class="max-w-7xl mx-auto px-3 py-6">
+{% endblock %}
+{% block content %}
+<main class="max-w-7xl mx-auto px-3 py-6">
         <h1 class="text-2xl font-semibold">Punto de información</h1>
         {% if punto_apagado %}
         <p class="alert-error my-4">El punto de información no está habilitado para programar.</p>
@@ -211,41 +203,8 @@
             </div>
         </div>
         {% else %}
-        {% for dia in dias %}
-        <section class="bg-white rounded-xl shadow p-4 mb-3" id="dia-{{ dia.fecha }}">
-            <h2 class="font-semibold">{{ dia.nombre }} {{ dia.fecha|fecha_dia }}
-                {% if dia.festivo %}<span class="text-amber-600 text-sm font-normal"> · Festivo: mañana 8:00 y tarde 5:00</span>{% endif %}
-            </h2>
-            {% for s in dia.slots %}
-            <div class="mt-3 pl-1 border-l-4 border-blue-500" id="slot-{{ dia.fecha }}-{{ s.horario }}">
-                <div class="flex justify-between items-center">
-                    <p class="font-medium">{{ s.etiqueta }}</p>
-                    {% if modo != 'foto' and not s.reservado_fimlm %}
-                    <a class="btn-primary text-sm" href="/programacion?modo=editar&fecha_sel={{ dia.fecha }}&horario_sel={{ s.horario }}">+ Agregar</a>
-                    {% elif modo != 'foto' and s.reservado_fimlm %}
-                    <span class="text-sm text-blue-700">Reservado por FIMLM</span>
-                    {% endif %}
-                </div>
-                {% if s.comparte_fimlm %}<p class="text-xs" style="color:var(--muted)">FIMLM también está en esta hora. Puedes agregar a tu equipo.</p>{% endif %}
-                {% for g in s.gente %}
-                <div class="flex justify-between items-center py-1 text-sm">
-                    <span class="nom-asig {% if puesto.get(g.persona.id, 99) <= 10 %}metal-oro{% elif puesto.get(g.persona.id, 99) <= 20 %}metal-plata{% elif puesto.get(g.persona.id, 99) <= 30 %}metal-bronce{% endif %}" style="padding:2px 8px;border-radius:8px;display:inline-block;">{{ g.persona.nombre }} <span style="opacity:.7">({{ g.turno.delegacion }})</span></span>
-                    {% if modo != 'foto' and (g.mio or es_fimlm) %}
-                    <form method="post" action="/programacion/quitar">
-                        <input type="hidden" name="turno_id" value="{{ g.turno.id }}">
-                        <button class="text-red-600">Quitar</button>
-                    </form>
-                    {% endif %}
-                </div>
-                {% else %}
-                {% if modo != 'foto' %}<p class="text-sm" style="color:var(--muted)">Nadie aún</p>{% endif %}
-                {% endfor %}
-            </div>
-            {% endfor %}
-        </section>
-        {% else %}
-        <p class="text-sm" style="color:var(--muted)">No hay días con gente para la foto. Pasa a Armar semana.</p>
-        {% endfor %}
+        {% set es_sonido = false %}
+        {% include "_grilla_editar.html" %}
         {% endif %}
     </main>
 
@@ -298,6 +257,4 @@
 })();
 </script>
 {% include "_resalte.html" %}
-    {% include "_footer.html" %}
-</body>
-</html>
+{% endblock %}

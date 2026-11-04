@@ -1,14 +1,8 @@
-<!DOCTYPE html>
-<html lang="es" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Programación Sonido - Sintonía</title>
-    {% include "_head_icons.html" %}
-    <link rel="stylesheet" href="/static/css/theme.css">
-    <script src="/static/js/theme.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+{% extends "_base.html" %}
+{% set activo = "programacion" %}
+{% block title %}Programación Sonido - Sintonía{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         .tablero { background: #f8fafc; color: #0f172a; border-radius: 16px; padding: 16px; max-width: 1080px; }
         .tablero-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 12px; }
@@ -36,11 +30,9 @@
         @media (max-width: 900px) { .dias { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         @media (max-width: 560px) { .dias { grid-template-columns: 1fr; } }
     </style>
-</head>
-<body class="bg-gray-100 min-h-screen">
-    {% set activo = "programacion" %}
-    {% include "_nav.html" %}
-    <main class="max-w-6xl mx-auto px-3 py-6">
+{% endblock %}
+{% block content %}
+<main class="max-w-7xl mx-auto px-3 py-6">
         <h1 class="text-2xl font-semibold">Sonido</h1>
         <p class="text-sm mb-3" style="color:var(--muted)">Semana {{ lunes|rango_semana(domingo) }}</p>
         <div class="flex flex-wrap gap-2 mb-4">
@@ -118,37 +110,8 @@
         {% endif %}
 
         {% if modo != 'foto' %}
-        {% for f in filas %}
-        <section class="bg-white rounded-xl shadow p-4 mb-3">
-            <h2 class="font-semibold">{{ f.dia }} {{ f.fecha|fecha_dia }}
-                {% if f.festivo %}<span class="text-amber-600 text-sm font-normal"> · Festivo: mañana 8:00 y tarde 5:00</span>{% endif %}
-            </h2>
-            {% for s in f.slots %}
-            {% for r in s.roles %}
-            <div class="mt-3 pl-1 border-l-4 {% if r.rol == 'camara' %}border-amber-500{% else %}border-blue-500{% endif %}" id="slot-{{ f.fecha.isoformat() }}-{{ s.horario }}-{{ r.rol }}">
-                <div class="flex justify-between items-center gap-2">
-                    <p class="font-medium">{{ s.etiqueta }}{% if f.fecha.weekday() in (2, 6) %} · {{ r.rol_txt }}{% endif %}</p>
-                    {% if not r.persona %}
-                    <a class="btn-primary text-sm" href="/programacion?modo=editar&fecha_sel={{ f.fecha.isoformat() }}&horario_sel={{ s.horario }}&rol={{ r.rol }}">+ Agregar</a>
-                    {% endif %}
-                </div>
-                {% if r.persona %}
-                <div class="flex justify-between items-center py-1 text-sm">
-                    <span class="nom-asig {% if puesto.get(r.persona.id, 99) <= 10 %}metal-oro{% elif puesto.get(r.persona.id, 99) <= 20 %}metal-plata{% elif puesto.get(r.persona.id, 99) <= 30 %}metal-bronce{% endif %}" style="padding:2px 8px;border-radius:8px;display:inline-block;">{{ r.persona.nombre }}</span>
-                    <form method="post" action="/programacion/sonido/quitar">
-                        <input type="hidden" name="modo" value="editar">
-                        <input type="hidden" name="turno_id" value="{{ r.turno.id }}">
-                        <button class="text-red-600">Quitar</button>
-                    </form>
-                </div>
-                {% else %}
-                <p class="text-sm" style="color:var(--muted)">Nadie aún</p>
-                {% endif %}
-            </div>
-            {% endfor %}
-            {% endfor %}
-        </section>
-        {% endfor %}
+        {% set es_sonido = true %}
+        {% include "_grilla_editar.html" %}
         {% else %}
         <p id="fotoMsg" class="text-sm mb-2" style="color:var(--muted)"></p>
         <section class="tablero" id="foto-cuadro">
@@ -221,6 +184,4 @@
 })();
 </script>
 {% include "_resalte.html" %}
-    {% include "_footer.html" %}
-</body>
-</html>
+{% endblock %}

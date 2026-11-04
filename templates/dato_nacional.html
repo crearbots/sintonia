@@ -1,20 +1,8 @@
-<!DOCTYPE html>
-<html lang="es" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dato sede nacional - Sintonía</title>
-    {% include "_head_icons.html" %}
-    <link rel="stylesheet" href="/static/css/theme.css">
-    <script src="/static/js/theme.js"></script>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 min-h-screen">
-        {% set activo = 'inicio' %}
-    {% include "_nav.html" %}
-
-    <main class="max-w-lg mx-auto px-3 sm:px-4 py-4 sm:py-8">
+{% extends "_base.html" %}
+{% set activo = "inicio" %}
+{% block title %}Dato sede nacional - Sintonía{% endblock %}
+{% block content %}
+<main class="max-w-lg mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div class="mb-6">
             <a href="/dashboard" class="text-blue-600 hover:underline text-sm">← Volver al Dashboard</a>
             <h2 class="text-2xl font-semibold text-gray-800 mt-2">Dato sede nacional</h2>
@@ -75,6 +63,4 @@
         </div>
         {% endif %}
     </main>
-    {% include "_footer.html" %}
-</body>
-</html>
+{% endblock %}

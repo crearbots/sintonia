@@ -1,0 +1,72 @@
+{# Grilla de edición de la semana.
+   es_sonido: true usa filas[].slots[].roles (cámara/sonido).
+   es_sonido: false usa dias[].slots[].gente (delegaciones). #}
+{% if es_sonido %}
+{% for dia in filas %}
+<section class="bg-white rounded-xl shadow p-4 mb-3">
+    <h2 class="font-semibold">{{ dia.dia }} {{ dia.fecha|fecha_dia }}
+        {% if dia.festivo %}<span class="text-amber-600 text-sm font-normal"> · Festivo: mañana 8:00 y tarde 5:00</span>{% endif %}
+    </h2>
+    {% for s in dia.slots %}
+    {% for r in s.roles %}
+    <div class="mt-3 pl-1 border-l-4 {% if r.rol == 'camara' %}border-amber-500{% else %}border-blue-500{% endif %}" id="slot-{{ dia.fecha.isoformat() }}-{{ s.horario }}-{{ r.rol }}">
+        <div class="flex justify-between items-center gap-2">
+            <p class="font-medium">{{ s.etiqueta }}{% if dia.fecha.weekday() in (2, 6) %} · {{ r.rol_txt }}{% endif %}</p>
+            {% if not r.persona %}
+            <a class="btn-primary text-sm" href="/programacion?modo=editar&fecha_sel={{ dia.fecha.isoformat() }}&horario_sel={{ s.horario }}&rol={{ r.rol }}">+ Agregar</a>
+            {% endif %}
+        </div>
+        {% if r.persona %}
+        <div class="flex justify-between items-center py-1 text-sm">
+            <span class="nom-asig {% if puesto.get(r.persona.id, 99) <= 10 %}metal-oro{% elif puesto.get(r.persona.id, 99) <= 20 %}metal-plata{% elif puesto.get(r.persona.id, 99) <= 30 %}metal-bronce{% endif %}" style="padding:2px 8px;border-radius:8px;display:inline-block;">{{ r.persona.nombre }}</span>
+            <form method="post" action="/programacion/sonido/quitar">
+                <input type="hidden" name="modo" value="editar">
+                <input type="hidden" name="turno_id" value="{{ r.turno.id }}">
+                <button class="text-red-600">Quitar</button>
+            </form>
+        </div>
+        {% else %}
+        <p class="text-sm" style="color:var(--muted)">Nadie aún</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+</section>
+{% endfor %}
+{% else %}
+{% for dia in dias %}
+<section class="bg-white rounded-xl shadow p-4 mb-3" id="dia-{{ dia.fecha }}">
+    <h2 class="font-semibold">{{ dia.nombre }} {{ dia.fecha|fecha_dia }}
+        {% if dia.festivo %}<span class="text-amber-600 text-sm font-normal"> · Festivo: mañana 8:00 y tarde 5:00</span>{% endif %}
+    </h2>
+    {% for s in dia.slots %}
+    <div class="mt-3 pl-1 border-l-4 border-blue-500" id="slot-{{ dia.fecha }}-{{ s.horario }}">
+        <div class="flex justify-between items-center">
+            <p class="font-medium">{{ s.etiqueta }}</p>
+            {% if not s.reservado_fimlm %}
+            <a class="btn-primary text-sm" href="/programacion?modo=editar&fecha_sel={{ dia.fecha }}&horario_sel={{ s.horario }}">+ Agregar</a>
+            {% else %}
+            <span class="text-sm text-blue-700">Reservado por FIMLM</span>
+            {% endif %}
+        </div>
+        {% if s.comparte_fimlm %}<p class="text-xs" style="color:var(--muted)">FIMLM también está en esta hora. Puedes agregar a tu equipo.</p>{% endif %}
+        {% for g in s.gente %}
+        <div class="flex justify-between items-center py-1 text-sm">
+            <span class="nom-asig {% if puesto.get(g.persona.id, 99) <= 10 %}metal-oro{% elif puesto.get(g.persona.id, 99) <= 20 %}metal-plata{% elif puesto.get(g.persona.id, 99) <= 30 %}metal-bronce{% endif %}" style="padding:2px 8px;border-radius:8px;display:inline-block;">{{ g.persona.nombre }} <span style="opacity:.7">({{ g.turno.delegacion }})</span></span>
+            {% if g.mio or es_fimlm %}
+            <form method="post" action="/programacion/quitar">
+                <input type="hidden" name="turno_id" value="{{ g.turno.id }}">
+                <button class="text-red-600">Quitar</button>
+            </form>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-sm" style="color:var(--muted)">Nadie aún</p>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</section>
+{% else %}
+<p class="text-sm" style="color:var(--muted)">No hay días con gente para la foto. Pasa a Armar semana.</p>
+{% endfor %}
+{% endif %}

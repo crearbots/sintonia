@@ -396,7 +396,8 @@ def _texto_vigente(db, persona_id: int, lunes) -> str:
 
 
 def _postular_abierto(request: Request, token: str, clave) -> bool:
-    return request.session.get("postular") == token and request.session.get("postular_clave") == clave.clave
+    from ..postulacion import enlace_abierto
+    return enlace_abierto(request, token)
 
 
 @router.get("/postular/{token}", response_class=HTMLResponse)
@@ -409,6 +410,7 @@ async def postular_ver(request: Request, token: str, db: Session = Depends(get_d
     if abierto:
         from ..festivos import es_festivo
         from ..models import AusenciaSemana, Postulacion
+        from ..postulacion import enlace_persona
         lunes = semana_vigente()
         dias = dias_semana(lunes)
         ocupados = {
@@ -417,7 +419,7 @@ async def postular_ver(request: Request, token: str, db: Session = Depends(get_d
                 Postulacion.labor == "sonido", Postulacion.semana_lunes == lunes,
             ).all()
         }
-        pid = request.session.get("postular_persona") if ok and not cambiar else None
+        pid = enlace_persona(request) if ok and not cambiar else None
         mios = set()
         lineas = []
         no_puede = False
@@ -520,32 +522,20 @@ async def postular_guardar(
     nombre: str = Form(""), no_puedo: str = Form(""),
 ):
     from ..processing import normalizar_celular, normalizar_nombre
-    from ..postulacion import clave_valida, aplicar_semana, tiene_semana, postulaciones_persona
+    from ..postulacion import clave_valida, aplicar_semana, tiene_semana, postulaciones_persona, enlace_abierto, enlace_abrir, enlace_fallo, enlace_persona_set, enlace_bloqueado
     row = _enlace_sonido(db, token)
     if not row:
         return RedirectResponse(url=f"/postular/{token}", status_code=303)
     form = await request.form()
     if form.get("paso") == "clave":
-        from datetime import datetime as dt, timedelta as td
-        hasta = request.session.get("postular_bloqueo")
-        if hasta:
-            try:
-                if dt.fromisoformat(hasta) > dt.now():
-                    return RedirectResponse(url=f"/postular/{token}?error=Demasiados+intentos.+Espera+15+minutos", status_code=303)
-            except ValueError:
-                pass
+        if enlace_bloqueado(request):
+            return RedirectResponse(url=f"/postular/{token}?error=Demasiados+intentos.+Espera+15+minutos", status_code=303)
         if not clave_valida(db, clave):
-            fallos = int(request.session.get("postular_fallos") or 0) + 1
-            request.session["postular_fallos"] = fallos
-            if fallos >= 5:
-                request.session["postular_bloqueo"] = (dt.now() + td(minutes=15)).isoformat(timespec="seconds")
-                request.session["postular_fallos"] = 0
+            bloqueo = enlace_fallo(request)
+            if bloqueo:
                 return RedirectResponse(url=f"/postular/{token}?error=Demasiados+intentos.+Espera+15+minutos", status_code=303)
             return RedirectResponse(url=f"/postular/{token}?error=Clave+incorrecta", status_code=303)
-        request.session["postular_fallos"] = 0
-        request.session.pop("postular_bloqueo", None)
-        request.session["postular"] = token
-        request.session["postular_clave"] = row.clave
+        enlace_abrir(request, token)
         return RedirectResponse(url=f"/postular/{token}", status_code=303)
     if form.get("paso") != "guardar":
         return RedirectResponse(url=f"/postular/{token}?cambiar=1", status_code=303)
@@ -573,7 +563,7 @@ async def postular_guardar(
     from ..postulacion import asegurar_equipo
     asegurar_equipo(db, per.id)
     db.commit()
-    request.session["postular_persona"] = per.id
+    enlace_persona_set(request, per.id)
     lunes = semana_vigente()
     huecos = []
     if not no_puedo:
