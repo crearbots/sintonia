@@ -1,21 +1,23 @@
-from fastapi import APIRouter, Request, Depends, Form, status, UploadFile, File
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import templates, require_login, require_com_user, _delegacion
-from ..auth import authenticate_user, es_comunicaciones, DELEGACIONES, hash_password
+from ..deps import _delegacion, require_login, templates
 from ..models import (
-    Usuario, Persona, Carga, DatoNacional, Turno, Alerta, ConfigPunto,
-    DomingoPunto, ClaveEnlace, Postulacion, AusenciaSemana,
+    Alerta,
+    AusenciaSemana,
+    Persona,
+    Postulacion,
+    Turno,
 )
 from ..punto import (
-    semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario,
-    NOMBRES_DIA, obtener_config, dia_permitido, punto_apagado_para,
-    generar_alertas_festivo, generar_alertas_domingo, ranking_anio,
+    NOMBRES_DIA,
+    dias_semana,
+    etiqueta_horario,
+    horarios_del_dia,
+    semana_vigente,
 )
-from ..festivos import es_festivo
-from ..processing import procesar_excel, FUENTES_VALIDAS, FUENTE_PRESENCIAL_ANTERIOR, nombre_fuente, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
 
 router = APIRouter()
 
@@ -46,8 +48,14 @@ async def sonido_enlace(request: Request):
 
 @router.get("/postulaciones", response_class=HTMLResponse)
 async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok: str = "", error: str = "", modo: str = "confirmar", q: str = "", filtro: str = "todos", alta: str = "", ver: int = 0):
-    from ..models import AusenciaSemana, EquipoSonido, Postulacion
-    from ..postulacion import clave_vigente, generar_alertas_silencio, semanas_en_silencio, sembrar_equipo, texto_plantilla
+    from ..models import EquipoSonido
+    from ..postulacion import (
+        clave_vigente,
+        generar_alertas_silencio,
+        semanas_en_silencio,
+        sembrar_equipo,
+        texto_plantilla,
+    )
     user, redir = _sonido_ok(request)
     if redir:
         return redir
@@ -143,8 +151,9 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
     q = (q or "").strip()
     ver_id = ver or None
     if q:
-        from ..processing import normalizar_celular
         import re
+
+        from ..processing import normalizar_celular
         digitos = re.sub(r"\D", "", q)
         if len(digitos) >= 12 and digitos.startswith("57"):
             digitos = digitos[2:]
@@ -254,10 +263,11 @@ async def sonido_equipo(
     persona_id: int = Form(0), accion: str = Form(...),
     nombre: str = Form(""), celular: str = Form(""), ajax: str = Form(""),
 ):
+    from fastapi.responses import JSONResponse
+
     from ..models import EquipoSonido
     from ..postulacion import asegurar_equipo
     from ..processing import normalizar_celular, normalizar_nombre
-    from fastapi.responses import JSONResponse
     user, redir = _sonido_ok(request)
     if redir:
         return JSONResponse({"ok": False, "error": "Sesión vencida"}) if ajax == "1" else redir
@@ -381,7 +391,6 @@ def _texto_huecos(huecos) -> str:
 
 
 def _texto_vigente(db, persona_id: int, lunes) -> str:
-    from ..models import AusenciaSemana
     from ..postulacion import postulaciones_persona
     if db.query(AusenciaSemana).filter(
         AusenciaSemana.persona_id == persona_id,
@@ -521,8 +530,17 @@ async def postular_guardar(
     clave: str = Form(""), celular: str = Form(""), celular2: str = Form(""),
     nombre: str = Form(""), no_puedo: str = Form(""),
 ):
+    from ..postulacion import (
+        aplicar_semana,
+        clave_valida,
+        enlace_abrir,
+        enlace_bloqueado,
+        enlace_fallo,
+        enlace_persona_set,
+        postulaciones_persona,
+        tiene_semana,
+    )
     from ..processing import normalizar_celular, normalizar_nombre
-    from ..postulacion import clave_valida, aplicar_semana, tiene_semana, postulaciones_persona, enlace_abierto, enlace_abrir, enlace_fallo, enlace_persona_set, enlace_bloqueado
     row = _enlace_sonido(db, token)
     if not row:
         return RedirectResponse(url=f"/postular/{token}", status_code=303)
@@ -567,7 +585,8 @@ async def postular_guardar(
     lunes = semana_vigente()
     huecos = []
     if not no_puedo:
-        from datetime import datetime as dt, timedelta as td
+        from datetime import datetime as dt
+        from datetime import timedelta as td
         for valor in form.getlist("hueco"):
             try:
                 f, h, rol = valor.split("|")
@@ -645,6 +664,7 @@ async def sonido_cambio(
     cambio_id: int = Form(...), decision: str = Form(...),
 ):
     from datetime import datetime as dt
+
     from ..models import CambioPostulacion
     from ..postulacion import aplicar_semana
     user, redir = _sonido_ok(request)
@@ -676,8 +696,10 @@ async def sonido_asignar(
     persona_id: int = Form(...), fecha: str = Form(...), horario: str = Form(...), rol: str = Form(...),
     modo: str = Form(""), origen: str = Form(""), ajax: str = Form(""),
 ):
-    from datetime import datetime as dt, timedelta as td
+    from datetime import datetime as dt
+    from datetime import timedelta as td
     from urllib.parse import quote
+
     from fastapi.responses import JSONResponse
     user, redir = _sonido_ok(request)
     if redir:

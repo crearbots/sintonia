@@ -1,8 +1,14 @@
+import logging
 import os
+
 import bcrypt
 from fastapi import Request
+
 from sqlalchemy.orm import Session
+
 from .models import Usuario
+
+logger = logging.getLogger("sintonia")
 
 DEFAULT_USER = os.getenv("APP_USER")
 DEFAULT_PASSWORD = os.getenv("APP_PASSWORD")
@@ -53,7 +59,7 @@ def create_default_user(db: Session):
         )
         db.add(user)
         db.commit()
-        print(f"Usuario creado: {DEFAULT_USER} (comunicaciones)")
+        logger.info(f"Usuario creado: {DEFAULT_USER} (comunicaciones)")
         return
     if not getattr(user, "delegacion", None):
         user.delegacion = "comunicaciones"
@@ -61,7 +67,7 @@ def create_default_user(db: Session):
         user.activo = True
     if not verify_password(DEFAULT_PASSWORD, user.password_hash):
         user.password_hash = hash_password(DEFAULT_PASSWORD)
-        print(f"Contraseña actualizada para: {DEFAULT_USER}")
+        logger.info(f"Contraseña actualizada para: {DEFAULT_USER}")
     db.commit()
 
 

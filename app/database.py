@@ -1,7 +1,8 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from pathlib import Path
 import os
+from pathlib import Path
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Permite definir la ruta de la DB por variable de entorno (útil en Railway con volumen)
 # Por defecto se crea dentro de la carpeta del proyecto

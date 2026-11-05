@@ -1,30 +1,28 @@
-from fastapi import FastAPI, Request, Depends, Form, status, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+import logging
 import os
-import tempfile
 from pathlib import Path
 
-from .database import engine, get_db, Base
-from .models import Usuario, Persona, Carga, DatoNacional, Turno, Alerta, ConfigPunto, DomingoPunto, ClaveEnlace, Postulacion, AusenciaSemana
+from fastapi import FastAPI, status
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+
 from .auth import (
     create_default_user,
-    authenticate_user,
-    DEFAULT_USER,
     es_comunicaciones,
     ruta_solo_com,
-    DELEGACIONES,
-    hash_password,
 )
 from .csrf import CSRFMiddleware
-from .punto import semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario, NOMBRES_DIA, obtener_config, dia_permitido, punto_apagado_para, generar_alertas_festivo, generar_alertas_domingo, ranking_anio
-from .festivos import es_festivo
-from .processing import procesar_excel, FUENTES_VALIDAS, FUENTE_PRESENCIAL_ANTERIOR, nombre_fuente, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
+from .database import Base, engine, get_db
+from .processing import (
+    nombre_fuente,
+)
+from .punto import obtener_config
+
+logger = logging.getLogger("sintonia")
 
 # Ruta base del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,7 +44,7 @@ class PermisosMiddleware(BaseHTTPMiddleware):
             if request.session.get("user") and ruta_solo_com(path) and not es_comunicaciones(request):
                 return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
         except Exception as e:
-            print(f"Error en filtro de permisos ({request.url.path}): {e}")
+            logger.info(f"Error en filtro de permisos ({request.url.path}): {e}")
             return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
         return await call_next(request)
 
@@ -61,8 +59,6 @@ static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Plantillas
-from jinja2.utils import htmlsafe_json_dumps
-import json
 
 jinja_env = Environment(
     loader=FileSystemLoader(str(BASE_DIR / "templates")),
@@ -96,41 +92,41 @@ def on_startup():
             if "cargado_por" not in cols:
                 conn.execute(sql_text("ALTER TABLE cargas ADD COLUMN cargado_por VARCHAR(100)"))
                 conn.commit()
-                print("Columna cargas.cargado_por agregada")
+                logger.info("Columna cargas.cargado_por agregada")
             pcols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(personas)")).fetchall()]
             if "motivo" not in pcols:
                 conn.execute(sql_text("ALTER TABLE personas ADD COLUMN motivo VARCHAR(100)"))
                 conn.commit()
-                print("Columna personas.motivo agregada")
+                logger.info("Columna personas.motivo agregada")
             if "motivo_detalle" not in pcols:
                 conn.execute(sql_text("ALTER TABLE personas ADD COLUMN motivo_detalle VARCHAR(255)"))
                 conn.commit()
-                print("Columna personas.motivo_detalle agregada")
+                logger.info("Columna personas.motivo_detalle agregada")
             ucols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(usuarios)")).fetchall()]
             if ucols:
                 if "delegacion" not in ucols:
                     conn.execute(sql_text("ALTER TABLE usuarios ADD COLUMN delegacion VARCHAR(40) DEFAULT 'comunicaciones'"))
                     conn.commit()
-                    print("Columna usuarios.delegacion agregada")
+                    logger.info("Columna usuarios.delegacion agregada")
                 if "activo" not in ucols:
                     conn.execute(sql_text("ALTER TABLE usuarios ADD COLUMN activo BOOLEAN DEFAULT 1"))
                     conn.commit()
-                    print("Columna usuarios.activo agregada")
+                    logger.info("Columna usuarios.activo agregada")
             tcols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(turnos)")).fetchall()]
             if tcols and "rol" not in tcols:
                 conn.execute(sql_text("ALTER TABLE turnos ADD COLUMN rol VARCHAR(20)"))
                 conn.commit()
-                print("Columna turnos.rol agregada")
+                logger.info("Columna turnos.rol agregada")
             ccols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(claves_enlace)")).fetchall()]
             if ccols and "plantilla" not in ccols:
                 conn.execute(sql_text("ALTER TABLE claves_enlace ADD COLUMN plantilla VARCHAR(2000)"))
                 conn.commit()
-                print("Columna claves_enlace.plantilla agregada")
+                logger.info("Columna claves_enlace.plantilla agregada")
             cfgcols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(config_punto)")).fetchall()]
             if cfgcols and "convivencia_fimlm" not in cfgcols:
                 conn.execute(sql_text("ALTER TABLE config_punto ADD COLUMN convivencia_fimlm BOOLEAN DEFAULT 0"))
                 conn.commit()
-                print("Columna config_punto.convivencia_fimlm agregada")
+                logger.info("Columna config_punto.convivencia_fimlm agregada")
             for col in ("labor_comunicaciones", "labor_politica", "labor_juventudes", "labor_electoral", "labor_fimlm"):
                 if cfgcols and col not in cfgcols:
                     conn.execute(sql_text(f"ALTER TABLE config_punto ADD COLUMN {col} VARCHAR(60) DEFAULT ''"))
@@ -139,9 +135,9 @@ def on_startup():
             if ecols and "es_coordinador" not in ecols:
                 conn.execute(sql_text("ALTER TABLE equipo_sonido ADD COLUMN es_coordinador BOOLEAN DEFAULT 0"))
                 conn.commit()
-                print("Columna equipo_sonido.es_coordinador agregada")
+                logger.info("Columna equipo_sonido.es_coordinador agregada")
     except Exception as e:
-        print(f"Migración: {e}")
+        logger.info(f"Migración: {e}")
 
     db = next(get_db())
     create_default_user(db)

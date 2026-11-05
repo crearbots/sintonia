@@ -205,6 +205,7 @@ def sembrar_equipo(db: Session) -> None:
 def semanas_en_silencio(db: Session, persona_id: int, desde: date, abierta: date) -> int:
     """Semanas cerradas seguidas sin postular ni decir que no puede."""
     from datetime import timedelta
+
     from .models import AusenciaSemana, Postulacion
     if not desde:
         return 0
@@ -230,6 +231,7 @@ def semanas_en_silencio(db: Session, persona_id: int, desde: date, abierta: date
 def generar_alertas_silencio(db: Session) -> None:
     """Lunes a viernes: una alerta a las 4 semanas cerradas y otra a las 8."""
     from datetime import timedelta
+
     from .models import Alerta, EquipoSonido, Persona
     hoy = hoy_colombia()
     if hoy.weekday() >= 5:

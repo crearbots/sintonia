@@ -1,28 +1,35 @@
-from fastapi import APIRouter, Request, Depends, Form, status, UploadFile, File
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import templates, require_login, require_com_user, _delegacion
-from ..auth import authenticate_user, es_comunicaciones, DELEGACIONES, hash_password
+from ..deps import require_com_user, require_login, templates
 from ..models import (
-    Usuario, Persona, Carga, DatoNacional, Turno, Alerta, ConfigPunto,
-    DomingoPunto, ClaveEnlace, Postulacion, AusenciaSemana,
+    Alerta,
+    Carga,
+    DatoNacional,
+    Persona,
+    Turno,
+)
+from ..processing import (
+    EQUIPOS_CARGA,
+    FUENTE_PRESENCIAL_ANTERIOR,
+    FUENTES_VALIDAS,
+    MOTIVOS_NO_INSTALADA,
+    nombre_fuente,
+    procesar_excel,
 )
 from ..punto import (
-    semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario,
-    NOMBRES_DIA, obtener_config, dia_permitido, punto_apagado_para,
-    generar_alertas_festivo, generar_alertas_domingo, ranking_anio,
+    generar_alertas_domingo,
+    generar_alertas_festivo,
 )
-from ..festivos import es_festivo
-from ..processing import procesar_excel, FUENTES_VALIDAS, FUENTE_PRESENCIAL_ANTERIOR, nombre_fuente, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
 
 router = APIRouter()
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
-    from datetime import datetime, timedelta
     from collections import defaultdict
+    from datetime import datetime
 
     user = require_login(request)
     if not user:
@@ -50,8 +57,6 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         Persona.estado == "No instalada",
         (Persona.motivo.is_(None) | (Persona.motivo == "")),
     ).order_by(Persona.id.desc()).all()
-
-    pendientes = pendientes_celular  # compat
 
     meta = 975
 
@@ -140,12 +145,9 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         m = len(vals) // 2
         return vals[m] if len(vals) % 2 else (vals[m - 1] + vals[m]) / 2
 
-    med_i = _mediana(incrementos_int)
-    med_n = _mediana(incrementos_nac)
     picos_interno = [(inc > 30) for inc in incrementos_int]
     picos_nacional = [(inc > 30) for inc in incrementos_nac]
 
-    from datetime import datetime as _dt
     cargas_todas = db.query(Carga).all()
     detalle_dias = {}
     for i, clave in enumerate(chart_keys):
@@ -358,7 +360,7 @@ async def upload_submit(
         return templates.TemplateResponse(
             request, "upload.html",
             {"user": user, "fuentes": FUENTES_VALIDAS,
-             "error": f"Error al procesar el archivo: {str(e)}"}
+             "error": f"Error al procesar el archivo: {e!s}"}
         )
     finally:
         # Limpiar archivo temporal
@@ -469,6 +471,7 @@ async def editar_pendiente_submit(
 @router.get("/informe", response_class=HTMLResponse)
 async def generar_informe(request: Request, db: Session = Depends(get_db)):
     from datetime import datetime, timedelta
+
     from sqlalchemy import func as sqlfunc
 
     user, redir = require_com_user(request)
@@ -660,7 +663,7 @@ async def seguimiento_submit(
     celular: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    from ..processing import normalizar_celular, normalizar_nombre
+    from ..processing import normalizar_celular
 
     user, redir = require_com_user(request)
     if redir:
@@ -908,8 +911,9 @@ async def listar_personas(
 
     q = (q or "").strip()
     if q:
-        from ..processing import normalizar_celular
         import re
+
+        from ..processing import normalizar_celular
         like = f"%{q}%"
         digitos = re.sub(r"\D", "", q)
         if len(digitos) >= 12 and digitos.startswith("57"):
@@ -1003,35 +1007,4 @@ async def historial_cargas(request: Request, db: Session = Depends(get_db)):
 @router.get("/backup")
 async def crear_backup(request: Request):
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
-    # Respaldo solo por Railway. Código histórico debajo no se ejecuta.
-    """Descarga una copia de la base de datos (usa DATABASE_PATH en producción)."""
-    import shutil
-    import tempfile
-    from fastapi.responses import FileResponse
-    from datetime import datetime
-    from ..database import DB_PATH
-
-    user, redir = require_com_user(request)
-    if redir:
-        return redir
-    db_path = Path(DB_PATH)
-    if not db_path.exists():
-        # Fallback a la ruta local por si no hay variable de entorno
-        db_path = BASE_DIR / "infomira_censo.db"
-    if not db_path.exists():
-        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
-
-    fecha = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_name = f"backup_infomira_{fecha}.db"
-
-    # Copia temporal (en producción /app puede no ser escribible de forma fiable)
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-    tmp.close()
-    shutil.copy2(db_path, tmp.name)
-
-    return FileResponse(
-        path=tmp.name,
-        filename=backup_name,
-        media_type="application/octet-stream",
-    )
 

@@ -1,21 +1,23 @@
-from fastapi import APIRouter, Request, Depends, Form, status, UploadFile, File
+from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import templates, require_login, require_com_user, _delegacion
-from ..auth import authenticate_user, es_comunicaciones, DELEGACIONES, hash_password
+from ..deps import _delegacion, require_com_user, require_login, templates
 from ..models import (
-    Usuario, Persona, Carga, DatoNacional, Turno, Alerta, ConfigPunto,
-    DomingoPunto, ClaveEnlace, Postulacion, AusenciaSemana,
+    Alerta,
+    DomingoPunto,
+    Persona,
+    Turno,
 )
 from ..punto import (
-    semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario,
-    NOMBRES_DIA, obtener_config, dia_permitido, punto_apagado_para,
-    generar_alertas_festivo, generar_alertas_domingo, ranking_anio,
+    dia_permitido,
+    etiqueta_horario,
+    horarios_del_dia,
+    obtener_config,
+    ranking_anio,
+    semana_vigente,
 )
-from ..festivos import es_festivo
-from ..processing import procesar_excel, FUENTES_VALIDAS, FUENTE_PRESENCIAL_ANTERIOR, nombre_fuente, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
 
 router = APIRouter()
 
@@ -156,8 +158,8 @@ async def programacion_alta(
     nombre: str = Form(...), celular: str = Form(...),
     fecha: str = Form(...), horario: str = Form(...),
 ):
+
     from ..processing import normalizar_celular, normalizar_nombre
-    from datetime import datetime as dt
     user = require_login(request)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
@@ -323,8 +325,8 @@ async def config_punto_domingo(request: Request, db: Session = Depends(get_db), 
     if not db.query(DomingoPunto).filter(DomingoPunto.fecha == f).first():
         db.add(DomingoPunto(fecha=f))
         db.commit()
-        from ..punto import MESES_ES, NOMBRES_DIA
         from ..auth import DELEGACIONES
+        from ..punto import MESES_ES
         tipo = f"domingo-{f.isoformat()}"
         texto = (
             f"Atención equipos: el domingo {f.day} de {MESES_ES[f.month-1]} "

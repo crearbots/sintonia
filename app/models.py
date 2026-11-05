@@ -1,5 +1,14 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Date, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.sql import func
+
 from .database import Base
 
 

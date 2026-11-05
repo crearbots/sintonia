@@ -4,14 +4,14 @@ Versión robusta + seguimiento de No instalada.
 """
 import re
 import uuid
-from typing import Any, Dict, List
-from openpyxl import load_workbook
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from datetime import datetime
+from typing import Any
 
-from .models import Persona, Carga
+from openpyxl import load_workbook
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
+from .models import Carga, Persona
 
 FUENTES_VALIDAS = [
     "Listado presencial/Punto de información",
@@ -75,7 +75,7 @@ def normalizar_estado(valor: Any) -> str | None:
     return None
 
 
-def mapear_columnas(headers: List) -> Dict[str, int]:
+def mapear_columnas(headers: list) -> dict[str, int]:
     mapping = {}
     for idx, h in enumerate(headers):
         if h is None:
@@ -101,7 +101,7 @@ def procesar_excel(
     fecha_listado,
     db: Session,
     cargado_por: str | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     resumen = {
         "nuevos": 0,
         "actualizados": 0,
@@ -118,7 +118,7 @@ def procesar_excel(
         wb = load_workbook(file_path, read_only=True, data_only=True)
         ws = wb.active
     except Exception as e:
-        resumen["errores"].append(f"No se pudo leer el archivo Excel: {str(e)}")
+        resumen["errores"].append(f"No se pudo leer el archivo Excel: {e!s}")
         return resumen
 
     rows = list(ws.iter_rows(values_only=True))
@@ -254,7 +254,7 @@ def procesar_excel(
                 continue
 
         except Exception as e:
-            resumen["errores"].append(f"Fila {row_num}: {str(e)}")
+            resumen["errores"].append(f"Fila {row_num}: {e!s}")
 
     try:
         carga = Carga(
@@ -281,7 +281,7 @@ def procesar_excel(
         resumen["seguimiento_no_instalada"] = 0
     except Exception as e:
         db.rollback()
-        resumen["errores"].append(f"Error al guardar la carga: {str(e)}")
+        resumen["errores"].append(f"Error al guardar la carga: {e!s}")
         resumen["nuevos"] = 0
         resumen["actualizados"] = 0
         resumen["pendientes"] = 0

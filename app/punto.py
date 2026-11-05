@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+
 from .festivos import es_festivo
 
 TZ_CO = timezone(timedelta(hours=-5))
@@ -84,8 +85,8 @@ MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","s
 
 
 def generar_alertas_festivo(db) -> None:
-    from .models import Alerta
     from .auth import DELEGACIONES
+    from .models import Alerta
     lunes = semana_vigente()
     for d in dias_semana(lunes):
         if not (es_festivo(d) and d.weekday() < 5):
@@ -107,7 +108,8 @@ def generar_alertas_festivo(db) -> None:
 def ranking_anio(db, anio: int | None = None):
     """Turnos de semanas cerradas en el año calendario. Lista (persona, total, por_delegacion)."""
     from collections import defaultdict
-    from .models import Turno, Persona
+
+    from .models import Persona, Turno
     lunes = semana_vigente()
     anio = anio or lunes.year
     filas = db.query(Turno).filter(Turno.semana_lunes < lunes).all()
@@ -140,8 +142,8 @@ def ranking_anio(db, anio: int | None = None):
 
 def generar_alertas_domingo(db) -> None:
     """Solo el sábado: recordar el domingo de la semana que se está armando."""
-    from .models import Alerta, DomingoPunto
     from .auth import DELEGACIONES
+    from .models import Alerta, DomingoPunto
     if hoy_colombia().weekday() != 5:
         return
     lunes = semana_vigente()

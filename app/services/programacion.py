@@ -1,21 +1,21 @@
 from datetime import datetime as dt
 
+from ..festivos import es_festivo
 from ..models import Alerta, AusenciaSemana, DomingoPunto, Persona, Postulacion, Turno
 from ..processing import normalizar_celular
 from ..punto import (
+    NOMBRES_DIA,
     dia_permitido,
     dias_semana,
     etiqueta_horario,
     generar_alertas_domingo,
     generar_alertas_festivo,
     horarios_del_dia,
-    NOMBRES_DIA,
     obtener_config,
     punto_apagado_para,
     ranking_anio,
     semana_vigente,
 )
-from ..festivos import es_festivo
 
 
 def _buscar_personas(db, q: str):

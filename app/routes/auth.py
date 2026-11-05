@@ -1,21 +1,10 @@
-from fastapi import APIRouter, Request, Depends, Form, status, UploadFile, File
+from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
+from ..auth import authenticate_user
 from ..database import get_db
-from ..deps import templates, require_login, require_com_user, _delegacion
-from ..auth import authenticate_user, es_comunicaciones, DELEGACIONES, hash_password
-from ..models import (
-    Usuario, Persona, Carga, DatoNacional, Turno, Alerta, ConfigPunto,
-    DomingoPunto, ClaveEnlace, Postulacion, AusenciaSemana,
-)
-from ..punto import (
-    semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario,
-    NOMBRES_DIA, obtener_config, dia_permitido, punto_apagado_para,
-    generar_alertas_festivo, generar_alertas_domingo, ranking_anio,
-)
-from ..festivos import es_festivo
-from ..processing import procesar_excel, FUENTES_VALIDAS, FUENTE_PRESENCIAL_ANTERIOR, nombre_fuente, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
+from ..deps import templates
 
 router = APIRouter()
 

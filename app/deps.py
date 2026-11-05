@@ -1,6 +1,7 @@
+from pathlib import Path
+
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pathlib import Path
 
 from .processing import nombre_fuente
 
