@@ -22,7 +22,7 @@
                 <label class="block text-sm mb-1">Delegación (esto define los permisos)</label>
                 <select name="delegacion" class="w-full px-3 py-2 border rounded-md">
                     {% for d in delegaciones if d != 'comunicaciones' %}
-                    <option value="{{ d }}">{% if d == 'sonido' %}sonido (templo){% else %}{{ d }}{% endif %}</option>
+                    <option value="{{ d }}">{% if d == 'sonido' %}Sonido (templo){% elif d == 'banos' %}Baños{% else %}{{ d|capitalize }}{% endif %}</option>
                     {% endfor %}
                 </select>
             </div>

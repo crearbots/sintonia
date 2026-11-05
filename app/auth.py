@@ -22,6 +22,7 @@ DELEGACIONES = (
     "electoral",
     "fimlm",
     "sonido",
+    "banos",
 )
 
 COM_ONLY_PREFIXES = (

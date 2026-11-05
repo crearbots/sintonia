@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Postulación · Baños</title>
+    {% include "_head_icons.html" %}
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .logo-lockup { height: 42px; width: auto; margin: 0 auto 12px; display: block; }
+        html[data-theme="dark"] .logo-lockup-light { display: none; }
+        html:not([data-theme="dark"]) .logo-lockup-dark { display: none; }
+        .paso { height: 6px; border-radius: 999px; background: #cbd5e1; }
+        .paso.on { background: #2563eb; }
+        .dia { width: 100%; text-align: left; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+        .dia .cuerpo { display: none; margin-top: 10px; }
+        .dia.abierto .cuerpo { display: block; }
+        .hueco { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+        .hueco input { width: 22px; height: 22px; }
+        .hueco.marcado { border-color: #16a34a; background: color-mix(in srgb, #16a34a 12%, var(--card)); }
+        body.postular { padding-bottom: 0; display: flex; flex-direction: column; min-height: 100dvh; }
+        body.postular main { width: 100%; max-width: 32rem; margin: 0 auto; flex: 1; }
+        @media (min-width: 768px) {
+            body.postular main { padding-top: 3rem; padding-bottom: 2rem; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen postular">
+    <main class="max-w-xl mx-auto px-4 py-8">
+        <img src="/static/img/logo/lockup-merged-light.svg" alt="Sintonía" class="logo-lockup logo-lockup-light">
+        <img src="/static/img/logo/lockup-merged-dark.svg" alt="" class="logo-lockup logo-lockup-dark">
+        {% if invalido %}
+        <p class="alert-error mt-4">Este enlace no es válido.</p>
+        {% else %}
+        <h1 class="text-2xl font-semibold text-center">Tu postulación, en 3 pasos</h1>
+        <p class="text-sm text-center mt-1 mb-4" style="color:var(--muted)">Labor de Baños</p>
+        <div class="grid grid-cols-3 gap-2 mb-4" id="barra">
+            <div class="paso on"></div><div class="paso {% if resumen %}on{% endif %}"></div><div class="paso {% if resumen %}on{% endif %}"></div>
+        </div>
+        {% if error %}<p class="alert-error mb-3">{{ error }}</p>{% endif %}
+        {% if ok and not resumen %}<p class="mb-3 text-sm font-medium" style="color:var(--success)">{{ ok }}</p>{% endif %}
+        {% if not abierto %}
+        <form method="post" class="bg-white rounded-xl shadow p-5">
+            <input type="hidden" name="csrf_token" value="{{ request.session.get('csrf_token', '') }}">
+            <p class="text-sm mb-3" style="color:var(--muted)">Ingresa la clave que te compartieron. Si el coordinador genera otra, esta deja de servir.</p>
+            <input type="hidden" name="paso" value="clave">
+            <label class="text-sm font-medium" for="clave">Clave</label>
+            <input id="clave" name="clave" inputmode="numeric" autocomplete="off" class="w-full mt-1 mb-3 px-3 py-3 border rounded-md text-lg tracking-widest" placeholder="0000">
+            <button class="btn-primary w-full">Continuar</button>
+        </form>
+        {% elif resumen %}
+        <section class="bg-white rounded-xl shadow p-5">
+            <p class="font-medium mb-2">{{ ok }}</p>
+            <p class="text-sm mb-3" style="color:var(--muted)">Si quieres sumar o quitar un día, usa Cambiar. No lo envíes otra vez si esta lista está bien.</p>
+            {% if no_puede %}
+            <p class="text-sm">Esta semana no puedes apoyar.</p>
+            {% elif lineas %}
+            <ul class="text-sm space-y-1 mb-3">
+                {% for linea in lineas %}<li>{{ linea }}</li>{% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-sm mb-3">No marcaste horarios.</p>
+            {% endif %}
+            <a href="?cambiar=1" class="btn-ghost inline-block mt-3">Cambiar mi postulación</a>
+        </section>
+        {% else %}
+        <form method="post" id="formPostular" class="space-y-3">
+            <input type="hidden" name="csrf_token" value="{{ request.session.get('csrf_token', '') }}">
+            <input type="hidden" name="paso" id="paso" value="guardar">
+            <section class="bg-white rounded-xl shadow p-5" id="pasoCel">
+                <p class="font-medium mb-1">Tu celular</p>
+                <p class="text-sm mb-3" style="color:var(--muted)">Escríbelo dos veces para no quedar en otro número.</p>
+                <input id="celular" name="celular" inputmode="numeric" autocomplete="tel" class="w-full mb-3 px-3 py-3 border rounded-md" placeholder="3001234567">
+                <input id="celular2" name="celular2" inputmode="numeric" autocomplete="tel" class="w-full mb-3 px-3 py-3 border rounded-md" placeholder="Otra vez">
+                <p id="errCel" class="text-sm mb-2 hidden" style="color:var(--danger)"></p>
+                <button type="button" class="btn-primary w-full" id="btnCel">Continuar</button>
+            </section>
+            <section class="hidden" id="pasoNom">
+                <p class="text-sm mb-3" style="color:var(--muted)" id="msgNom">No estás en la base. Escribe tu nombre para registrarte.</p>
+                <label class="text-sm font-medium" for="nombre">Nombre</label>
+                <input id="nombre" name="nombre" class="w-full mt-1 mb-3 px-3 py-3 border rounded-md text-lg" placeholder="Tu nombre">
+                <div class="flex gap-2">
+                    <button type="button" class="btn-ghost" id="atrasNom">Atrás</button>
+                    <button type="button" class="btn-primary flex-1" id="btnNom">Continuar</button>
+                </div>
+            </section>
+            <section class="hidden" id="pasoSem">
+                <p class="text-sm mb-3" style="color:var(--muted)">Lo que marques es lo que queda. Si ya enviaste, se abre con eso y puedes sumar o quitar.</p>
+                <label class="hueco bg-white">
+                    <input type="checkbox" name="no_puedo" value="1" {% if no_puede %}checked{% endif %} id="noPuedo">
+                    <span class="font-medium">Esta semana no puedo apoyar</span>
+                </label>
+                <div id="listaDias" class="space-y-2 mt-3">
+                    {% for f in filas %}
+                    <div class="dia">
+                        <button type="button" class="w-full flex justify-between items-center font-medium abrir">
+                            <span>{{ f.dia }} {{ f.fecha }}{% if f.festivo %} · festivo{% endif %}</span>
+                            <span class="text-sm">{% if f.libre %}<span style="color:#d97706;font-weight:700">Libre</span>{% endif %} <span class="cuenta" style="color:var(--muted)"></span></span>
+                        </button>
+                        <div class="cuerpo">
+                            {% for s in f.slots %}
+                            <label class="hueco mb-2">
+                                <input type="checkbox" name="hueco" value="{{ s.valor }}" data-texto="{{ f.dia }} {{ f.fecha }} · {{ s.etiqueta }}" {% if s.marcado %}checked{% endif %}>
+                                <span>{{ s.etiqueta }}{% if s.libre %} · <span style="color:#d97706;font-weight:600">Libre</span>{% endif %}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button class="btn-primary w-full mt-3" id="btnRevisar" type="button">Revisar</button>
+            </section>
+            <section class="bg-white rounded-xl shadow p-5 hidden" id="pasoResumen">
+                <p class="font-medium mb-1">Vas a quedar con estos horarios</p>
+                <p class="text-sm mb-3" style="color:var(--muted)">Esta es la lista completa. Si falta un día, vuelve y márcalo.</p>
+                <ul id="listaResumen" class="text-sm space-y-1 mb-4"></ul>
+                <div class="flex gap-2">
+                    <button type="button" class="btn-ghost" id="btnVolver">Volver</button>
+                    <button class="btn-primary flex-1" id="btnGuardar" type="button">Enviar</button>
+                </div>
+            </section>
+        </form>
+        {% endif %}
+        {% endif %}
+    </main>
+<script>
+(function(){
+  var barra = document.querySelectorAll("#barra .paso");
+  function marca(n){ barra.forEach(function(b,i){ b.classList.toggle("on", i <= n); }); }
+  var form = document.getElementById("formPostular");
+  if (!form) return;
+  form.addEventListener("submit", function(ev){
+    if (document.getElementById("paso").value !== "guardar") ev.preventDefault();
+  });
+  document.getElementById("btnCel").addEventListener("click", function(){
+    var c = document.getElementById("celular").value.trim();
+    var c2 = document.getElementById("celular2").value.trim();
+    if (c.length < 10 || c !== c2) { alert("Los dos celulares deben coincidir y tener 10 dígitos"); return; }
+    var tokenInput = form.querySelector('input[name="csrf_token"]');
+    var body = new URLSearchParams();
+    body.set("celular", c);
+    body.set("celular2", c2);
+    body.set("csrf_token", tokenInput ? tokenInput.value : "");
+    fetch(location.pathname + "/revisar", {
+      method: "POST",
+      body: body,
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" }
+    })
+      .then(function(r){
+      return r.json().then(function(d){
+        if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+        return d;
+      });
+    })
+      .then(function(d){
+        if (!d.ok) { alert(d.error || "Error"); return; }
+        document.getElementById("pasoCel").classList.add("hidden");
+        if (d.existe) {
+          document.getElementById("nombre").value = d.nombre || "";
+          document.getElementById("pasoNom").classList.add("hidden");
+          document.getElementById("pasoSem").classList.remove("hidden");
+          marca(1);
+          if (d.mios) d.mios.forEach(function(v){ var el = form.querySelector('input[value="'+v+'"]'); if (el) el.checked = true; });
+          if (d.no_puede) document.getElementById("noPuedo").checked = true;
+          bloquear(!!d.no_puede);
+          pintar();
+        } else {
+          document.getElementById("pasoNom").classList.remove("hidden");
+          marca(1);
+        }
+      })
+      .catch(function(e){ alert("No se pudo continuar: " + e.message); });
+  });
+  document.getElementById("atrasNom").addEventListener("click", function(){
+    document.getElementById("pasoNom").classList.add("hidden");
+    document.getElementById("pasoCel").classList.remove("hidden");
+    marca(0);
+  });
+  document.getElementById("btnNom").addEventListener("click", function(){
+    if (!document.getElementById("nombre").value.trim()) { alert("Escribe tu nombre"); return; }
+    document.getElementById("pasoNom").classList.add("hidden");
+    document.getElementById("pasoSem").classList.remove("hidden");
+    marca(1);
+  });
+  document.getElementById("btnRevisar").addEventListener("click", function(){
+    var lista = document.getElementById("listaResumen");
+    lista.innerHTML = "";
+    if (document.getElementById("noPuedo").checked) {
+      lista.innerHTML = "<li>Esta semana no puedo apoyar</li>";
+    } else {
+      var marcados = form.querySelectorAll('input[name="hueco"]:checked');
+      if (!marcados.length) { alert("Marca al menos un horario, o indica que no puedes"); return; }
+      marcados.forEach(function(c){ lista.innerHTML += "<li>" + c.dataset.texto + "</li>"; });
+    }
+    document.getElementById("pasoSem").classList.add("hidden");
+    document.getElementById("pasoResumen").classList.remove("hidden");
+    marca(2);
+  });
+  document.getElementById("btnVolver").addEventListener("click", function(){
+    document.getElementById("pasoResumen").classList.add("hidden");
+    document.getElementById("pasoSem").classList.remove("hidden");
+    marca(1);
+  });
+  document.getElementById("btnGuardar").addEventListener("click", function(){
+    document.getElementById("paso").value = "guardar";
+    form.submit();
+  });
+  function pintar(){
+    document.querySelectorAll("#listaDias input[type=checkbox]").forEach(function(c){
+      var label = c.closest(".hueco");
+      if (label) label.classList.toggle("marcado", c.checked);
+    });
+    document.querySelectorAll(".dia").forEach(function(dia){
+      var n = dia.querySelectorAll("input[type=checkbox]:checked").length;
+      var cuenta = dia.querySelector(".cuenta");
+      if (cuenta) cuenta.textContent = n ? n + (n === 1 ? " marcado" : " marcados") : "";
+    });
+  }
+  function bloquear(activo){
+    var lista = document.getElementById("listaDias");
+    lista.querySelectorAll('input[name="hueco"]').forEach(function(c){
+      if (activo) c.checked = false;
+      c.disabled = activo;
+    });
+    lista.style.display = activo ? "none" : "";
+    pintar();
+  }
+  var no = document.getElementById("noPuedo");
+  no.addEventListener("change", function(){ bloquear(no.checked); });
+  document.querySelectorAll(".dia").forEach(function(dia){
+    dia.querySelector(".abrir").addEventListener("click", function(){
+      var abierto = dia.classList.contains("abierto");
+      document.querySelectorAll(".dia").forEach(function(o){ o.classList.remove("abierto"); });
+      if (!abierto) dia.classList.add("abierto");
+    });
+    dia.querySelectorAll("input[type=checkbox]").forEach(function(c){
+      c.addEventListener("change", pintar);
+    });
+  });
+  pintar();
+  if (no.checked) bloquear(true);
+})();
+</script>
+</body>
+</html>

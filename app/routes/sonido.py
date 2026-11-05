@@ -29,6 +29,7 @@ def _nombre_equipo(delegacion: str) -> str:
         "electoral": "Electoral",
         "fimlm": "FIMLM",
         "sonido": "Sonido",
+        "banos": "Baños",
     }.get(delegacion or "", delegacion or "otro equipo")
 
 
@@ -36,7 +37,7 @@ def _sonido_ok(request: Request):
     user = require_login(request)
     if not user:
         return None, RedirectResponse(url="/login", status_code=303)
-    if _delegacion(request) != "sonido":
+    if _delegacion(request) not in ("sonido", "banos"):
         return None, RedirectResponse(url="/programacion", status_code=303)
     return user, None
 
@@ -54,24 +55,31 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
         generar_alertas_silencio,
         semanas_en_silencio,
         sembrar_equipo,
+        sembrar_equipo_banos,
         texto_plantilla,
     )
     user, redir = _sonido_ok(request)
     if redir:
         return redir
-    sembrar_equipo(db)
+    delg = _delegacion(request)
+    labor = "banos" if delg == "banos" else "sonido"
+    if labor == "banos":
+        from ..models import EquipoBanos
+        sembrar_equipo_banos(db)
+    else:
+        sembrar_equipo(db)
     generar_alertas_silencio(db)
     lunes = semana_vigente()
-    clave = clave_vigente(db, "sonido")
+    clave = clave_vigente(db, labor)
     base = str(request.base_url).rstrip("/")
-    enlace = f"{base}/postular/{clave.token}"
+    enlace = f"{base}/postular-banos/{clave.token}" if labor == "banos" else f"{base}/postular/{clave.token}"
     ocupado = {
-        (t.fecha, t.horario, t.rol or "sonido")
-        for t in db.query(Turno).filter(Turno.delegacion == "sonido", Turno.semana_lunes == lunes).all()
+        (t.fecha, t.horario, t.rol or labor)
+        for t in db.query(Turno).filter(Turno.delegacion == labor, Turno.semana_lunes == lunes).all()
     }
-    posts = db.query(Postulacion).filter(Postulacion.labor == "sonido", Postulacion.semana_lunes == lunes).all()
+    posts = db.query(Postulacion).filter(Postulacion.labor == labor, Postulacion.semana_lunes == lunes).all()
     ids = {p.persona_id for p in posts}
-    ausencias = db.query(AusenciaSemana).filter(AusenciaSemana.labor == "sonido", AusenciaSemana.semana_lunes == lunes).all()
+    ausencias = db.query(AusenciaSemana).filter(AusenciaSemana.labor == labor, AusenciaSemana.semana_lunes == lunes).all()
     ids |= {a.persona_id for a in ausencias}
     personas = {p.id: p for p in db.query(Persona).filter(Persona.id.in_(ids)).all()} if ids else {}
     por_cupo = {}
@@ -95,7 +103,7 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
             items.sort(key=lambda x: (x["nombre"] or "").lower())
         postulados.append({
             "fecha": fecha, "horario": horario, "rol": rol,
-            "etiqueta": f"{NOMBRES_DIA[fecha.weekday()]} {fecha.day:02d} · {etiqueta_horario(horario)} · {'Cámara' if rol == 'camara' else 'Sonido'}",
+            "etiqueta": f"{NOMBRES_DIA[fecha.weekday()]} {fecha.day:02d} · {etiqueta_horario(horario)} · {_etiqueta_rol(rol)}",
             "gente": items,
             "lleno": (fecha, horario, rol) in ocupado,
         })
@@ -103,7 +111,11 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
     no_pueden = [personas.get(a.persona_id) for a in ausencias]
     no_pueden = [p for p in no_pueden if p]
     respondieron = {p.persona_id for p in posts} | {a.persona_id for a in ausencias}
-    equipo = db.query(EquipoSonido).filter(EquipoSonido.activo == True).all()
+    if labor == "banos":
+        from ..models import EquipoBanos
+        equipo = db.query(EquipoBanos).filter(EquipoBanos.activo == True).all()
+    else:
+        equipo = db.query(EquipoSonido).filter(EquipoSonido.activo == True).all()
     ids_equipo = {r.persona_id for r in equipo}
     gente_equipo = {p.id: p for p in db.query(Persona).filter(Persona.id.in_(ids_equipo)).all()} if ids_equipo else {}
     sin_indicar = []
@@ -198,6 +210,8 @@ async def postulaciones_ver(request: Request, db: Session = Depends(get_db), ok:
         "sin_indicar": sin_indicar, "miembros": miembros, "lista": lista, "indicaron": indicaron,
         "q": q, "filtro": filtro, "ver": ver_id, "alta": alta, "alta_estado": alta_estado,
         "alta_persona": alta_persona, "alta_cel": alta_cel,
+        "accion_confirmar": "/programacion/banos/confirmar" if labor == "banos" else "/programacion/sonido/asignar",
+        "nombre_equipo": "Baños" if labor == "banos" else "Sonido",
     })
 
 
@@ -207,7 +221,9 @@ async def sonido_regenerar_clave(request: Request, db: Session = Depends(get_db)
     if redir:
         return redir
     from ..postulacion import regenerar_clave
-    row = regenerar_clave(db, "sonido")
+    delg = _delegacion(request)
+    labor = "banos" if delg == "banos" else "sonido"
+    row = regenerar_clave(db, labor)
     return RedirectResponse(url=f"/postulaciones?modo=link&ok=Clave+nueva:+{row.clave}", status_code=303)
 
 
@@ -219,10 +235,12 @@ async def sonido_guardar_plantilla(
     if redir:
         return redir
     from ..postulacion import clave_vigente, guardar_plantilla
-    clave = clave_vigente(db, "sonido")
+    delg = _delegacion(request)
+    labor = "banos" if delg == "banos" else "sonido"
+    clave = clave_vigente(db, labor)
     base = str(request.base_url).rstrip("/")
-    enlace = f"{base}/postular/{clave.token}"
-    guardar_plantilla(db, plantilla, enlace, "sonido")
+    enlace = f"{base}/postular-banos/{clave.token}" if labor == "banos" else f"{base}/postular/{clave.token}"
+    guardar_plantilla(db, plantilla, enlace, labor)
     return RedirectResponse(url="/postulaciones?modo=link&ok=Mensaje+guardado", status_code=303)
 
 
@@ -265,12 +283,17 @@ async def sonido_equipo(
 ):
     from fastapi.responses import JSONResponse
 
-    from ..models import EquipoSonido
-    from ..postulacion import asegurar_equipo
+    from ..models import EquipoBanos, EquipoSonido
+    from ..postulacion import asegurar_equipo, asegurar_equipo_banos
     from ..processing import normalizar_celular, normalizar_nombre
     user, redir = _sonido_ok(request)
     if redir:
         return JSONResponse({"ok": False, "error": "Sesión vencida"}) if ajax == "1" else redir
+    delg = _delegacion(request)
+    labor = "banos" if delg == "banos" else "sonido"
+    Modelo = EquipoBanos if labor == "banos" else EquipoSonido
+    asegurar = asegurar_equipo_banos if labor == "banos" else asegurar_equipo
+    nombre = "Baños" if labor == "banos" else "Sonido"
     if accion == "crear":
         cel = normalizar_celular(celular)
         nom = normalizar_nombre(nombre)
@@ -280,25 +303,25 @@ async def sonido_equipo(
             return RedirectResponse(url=f"/postulaciones?modo=equipo&alta={cel}&error=Escribe+el+nombre", status_code=303)
         per = db.query(Persona).filter(Persona.celular == cel).first()
         if not per:
-            per = Persona(nombre=nom, celular=cel, estado="No instalada", pendiente_revision=False, fuente_ultima="Alta Sonido")
+            per = Persona(nombre=nom, celular=cel, estado="No instalada", pendiente_revision=False, fuente_ultima=f"Alta {nombre}")
             db.add(per)
             db.commit()
             db.refresh(per)
             db.add(Alerta(
                 para_delegacion="comunicaciones", tipo="alta_nueva",
-                texto=f"Persona nueva desde el equipo de Sonido: {nom} ({cel}). Revisar si ya tiene la App.",
+                texto=f"Persona nueva desde el equipo de {nombre}: {nom} ({cel}). Revisar si ya tiene la App.",
                 leida=False,
             ))
-        asegurar_equipo(db, per.id)
+        asegurar(db, per.id)
         db.commit()
         return RedirectResponse(url=f"/postulaciones?modo=equipo&ok=Agregado+al+equipo&ver={per.id}", status_code=303)
     if accion == "agregar":
         if not db.query(Persona).filter(Persona.id == persona_id).first():
             return RedirectResponse(url="/postulaciones?modo=equipo&error=No+existe", status_code=303)
-        asegurar_equipo(db, persona_id)
+        asegurar(db, persona_id)
         db.commit()
         return RedirectResponse(url=f"/postulaciones?modo=equipo&ok=Agregado+al+equipo&ver={persona_id}", status_code=303)
-    row = db.query(EquipoSonido).filter(EquipoSonido.persona_id == persona_id, EquipoSonido.activo == True).first()
+    row = db.query(Modelo).filter(Modelo.persona_id == persona_id, Modelo.activo == True).first()
     if not row:
         return RedirectResponse(url="/postulaciones?modo=equipo&error=No+está+en+el+equipo", status_code=303)
     if accion == "coordinador":
@@ -355,8 +378,9 @@ def _vistas_cambio(db, alertas) -> None:
         cambio = db.query(CambioPostulacion).filter(CambioPostulacion.id == cid, CambioPostulacion.estado == "pendiente").first()
         if not cambio:
             continue
+        labor = cambio.labor or "sonido"
         per = db.query(Persona).filter(Persona.id == cambio.persona_id).first()
-        antes = _texto_vigente(db, cambio.persona_id, cambio.semana_lunes)
+        antes = _texto_vigente(db, cambio.persona_id, cambio.semana_lunes, labor)
         ahora = ["Esta semana no puede apoyar."] if cambio.no_puede else _lineas_detalle(cambio.detalle)
         alerta.vista = {
             "id": cambio.id,
@@ -364,12 +388,22 @@ def _vistas_cambio(db, alertas) -> None:
             "antes": [parte.strip() for parte in antes.split(",") if parte.strip()],
             "ahora": ahora,
             "ahora_no": cambio.no_puede,
+            "labor": "Baños" if labor == "banos" else "Sonido",
+            "accion": "/programacion/banos/cambio" if labor == "banos" else "/programacion/sonido/cambio",
         }
+
+
+def _etiqueta_rol(rol: str) -> str:
+    if rol == "camara":
+        return "Cámara"
+    if rol == "banos":
+        return "Baños"
+    return "Sonido"
 
 
 def _linea_hueco(fecha, horario, rol):
     mes = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][fecha.month - 1].capitalize()
-    return f"{NOMBRES_DIA[fecha.weekday()]} {fecha.day:02d}/{mes} · {etiqueta_horario(horario)} · {'Cámara' if rol == 'camara' else 'Sonido'}"
+    return f"{NOMBRES_DIA[fecha.weekday()]} {fecha.day:02d}/{mes} · {etiqueta_horario(horario)} · {_etiqueta_rol(rol)}"
 
 
 def _lineas_detalle(detalle: str) -> list[str]:
@@ -390,15 +424,15 @@ def _texto_huecos(huecos) -> str:
     return ", ".join(_linea_hueco(f, h, rol) for f, h, rol in huecos)
 
 
-def _texto_vigente(db, persona_id: int, lunes) -> str:
+def _texto_vigente(db, persona_id: int, lunes, labor: str = "sonido") -> str:
     from ..postulacion import postulaciones_persona
     if db.query(AusenciaSemana).filter(
         AusenciaSemana.persona_id == persona_id,
-        AusenciaSemana.labor == "sonido",
+        AusenciaSemana.labor == labor,
         AusenciaSemana.semana_lunes == lunes,
     ).first():
         return "no podía apoyar esta semana"
-    filas = postulaciones_persona(db, persona_id, lunes)
+    filas = postulaciones_persona(db, persona_id, lunes, labor)
     if not filas:
         return "sin horarios"
     return ", ".join(_linea_hueco(p.fecha, p.horario, p.rol) for p in sorted(filas, key=lambda p: (p.fecha, p.horario, p.rol)))
@@ -671,6 +705,46 @@ async def sonido_cambio(
     if redir:
         return redir
     cambio = db.query(CambioPostulacion).filter(CambioPostulacion.id == cambio_id, CambioPostulacion.estado == "pendiente").first()
+    if not cambio or (cambio.labor or "sonido") != "sonido":
+        return RedirectResponse(url="/dashboard", status_code=303)
+    if _delegacion(request) != "sonido":
+        return RedirectResponse(url="/dashboard", status_code=303)
+    if decision == "aceptar":
+        huecos = []
+        if not cambio.no_puede:
+            for parte in (cambio.detalle or "").split(";"):
+                if not parte:
+                    continue
+                f, h, rol = parte.split("|")
+                huecos.append((dt.strptime(f, "%Y-%m-%d").date(), h, rol))
+        aplicar_semana(db, cambio.persona_id, cambio.semana_lunes, huecos, cambio.no_puede, "sonido")
+        cambio.estado = "aceptado"
+    else:
+        cambio.estado = "rechazado"
+    db.query(Alerta).filter(Alerta.tipo == f"cambio-{cambio.id}", Alerta.para_delegacion == "sonido").update({"leida": True})
+    db.commit()
+    return RedirectResponse(url="/dashboard", status_code=303)
+
+
+@router.post("/programacion/banos/cambio")
+async def banos_cambio(
+    request: Request, db: Session = Depends(get_db),
+    cambio_id: int = Form(...), decision: str = Form(...),
+):
+    from datetime import datetime as dt
+
+    from ..models import CambioPostulacion
+    from ..postulacion import aplicar_semana
+    user, redir = _sonido_ok(request)
+    if redir:
+        return redir
+    if _delegacion(request) != "banos":
+        return RedirectResponse(url="/dashboard", status_code=303)
+    cambio = db.query(CambioPostulacion).filter(
+        CambioPostulacion.id == cambio_id,
+        CambioPostulacion.estado == "pendiente",
+        CambioPostulacion.labor == "banos",
+    ).first()
     if not cambio:
         return RedirectResponse(url="/dashboard", status_code=303)
     if decision == "aceptar":
@@ -681,11 +755,11 @@ async def sonido_cambio(
                     continue
                 f, h, rol = parte.split("|")
                 huecos.append((dt.strptime(f, "%Y-%m-%d").date(), h, rol))
-        aplicar_semana(db, cambio.persona_id, cambio.semana_lunes, huecos, cambio.no_puede)
+        aplicar_semana(db, cambio.persona_id, cambio.semana_lunes, huecos, cambio.no_puede, "banos")
         cambio.estado = "aceptado"
     else:
         cambio.estado = "rechazado"
-    db.query(Alerta).filter(Alerta.tipo == f"cambio-{cambio.id}").update({"leida": True})
+    db.query(Alerta).filter(Alerta.tipo == f"cambio-{cambio.id}", Alerta.para_delegacion == "banos").update({"leida": True})
     db.commit()
     return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -711,6 +785,10 @@ async def sonido_asignar(
             return JSONResponse({"ok": False, "error": msg})
         return RedirectResponse(url=volver + "?error=" + quote(msg), status_code=303)
 
+    if _delegacion(request) != "sonido":
+        return JSONResponse({"ok": False, "error": "Solo Sonido puede confirmar esto"}) if ajax == "1" else RedirectResponse(url="/programacion", status_code=303)
+    if (rol or "").strip().lower() == "banos":
+        return JSONResponse({"ok": False, "error": "Ese horario es de Baños"}) if ajax == "1" else RedirectResponse(url="/programacion", status_code=303)
     if modo != "editar":
         return fallo("La foto no se edita. Pasa a Armar semana")
     rol = (rol or "").strip().lower()

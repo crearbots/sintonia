@@ -129,6 +129,136 @@ def vista_sonido(request, db, user, q, horario_sel, fecha_sel, modo, error, ok):
     }
 
 
+def vista_banos(request, db, user, q, horario_sel, fecha_sel, modo, error, ok):
+    generar_alertas_festivo(db)
+    lunes = semana_vigente()
+    dias = dias_semana(lunes)
+    turnos = db.query(Turno).filter(Turno.delegacion == "banos", Turno.semana_lunes == lunes).all()
+    personas_map = {p.id: p for p in db.query(Persona).all()} if turnos else {}
+    ocupado = {(t.fecha, t.horario): t for t in turnos}
+    filas = []
+    for d in dias:
+        festivo = es_festivo(d) and d.weekday() < 5
+        slots = []
+        for h in horarios_del_dia(d):
+            t = ocupado.get((d, h))
+            per = personas_map.get(t.persona_id) if t else None
+            slots.append({
+                "horario": h,
+                "etiqueta": etiqueta_horario(h),
+                "turno": t,
+                "persona": per,
+            })
+        filas.append({
+            "fecha": d,
+            "dia": NOMBRES_DIA[d.weekday()],
+            "festivo": festivo,
+            "slots": slots,
+        })
+    editando = (modo or "editar") != "foto"
+    if not editando:
+        fecha_sel = ""
+        horario_sel = ""
+        q = ""
+    busqueda = _buscar_personas(db, q) if editando else []
+    ids_mios = {t.persona_id for t in db.query(Turno).filter(Turno.delegacion == "banos").all()}
+    mis_cols = db.query(Persona).filter(Persona.id.in_(ids_mios)).all() if ids_mios else []
+    cerrados = db.query(Turno).filter(Turno.delegacion == "banos", Turno.semana_lunes < lunes).all()
+    score_hora, score_anio = _scores(cerrados, lunes.year, fecha_sel, horario_sel)
+    mis_cols.sort(key=lambda p: (-score_hora.get(p.id, 0), -score_anio.get(p.id, 0), (p.nombre or "").lower()))
+    alertas = db.query(Alerta).filter(Alerta.para_delegacion == "banos", Alerta.leida == False).order_by(Alerta.id.desc()).all()
+    _rank, puesto = ranking_anio(db)
+    return {
+        "user": user, "alertas": alertas,
+        "lunes": lunes, "domingo": dias[-1], "filas": filas,
+        "q": q, "busqueda": busqueda, "mis_cols": mis_cols, "puesto": puesto,
+        "fecha_sel": fecha_sel, "horario_sel": horario_sel,
+        "modo": "foto" if not editando else "editar",
+        "error": error, "ok": ok,
+        "busqueda_vacia": bool(q.strip()) and not busqueda,
+    }
+    generar_alertas_festivo(db)
+    lunes = semana_vigente()
+    dias = dias_semana(lunes)
+    turnos = db.query(Turno).filter(Turno.delegacion == "sonido", Turno.semana_lunes == lunes).all()
+    personas_map = {p.id: p for p in db.query(Persona).all()} if turnos else {}
+    ocupado = {(t.fecha, t.horario, t.rol or "sonido"): t for t in turnos}
+    filas = []
+    for d in dias:
+        festivo = es_festivo(d) and d.weekday() < 5
+        roles = ["sonido", "camara"] if d.weekday() in (2, 6) else ["sonido"]
+        slots = []
+        for h in horarios_del_dia(d):
+            cups = []
+            for rol in roles:
+                t = ocupado.get((d, h, rol))
+                per = personas_map.get(t.persona_id) if t else None
+                cups.append({
+                    "rol": rol,
+                    "rol_txt": "Cámara" if rol == "camara" else "Sonido",
+                    "turno": t,
+                    "persona": per,
+                })
+            slots.append({"horario": h, "etiqueta": etiqueta_horario(h), "roles": cups})
+        filas.append({
+            "fecha": d,
+            "dia": NOMBRES_DIA[d.weekday()],
+            "festivo": festivo,
+            "slots": slots,
+        })
+    rol_sel = request.query_params.get("rol", "")
+    editando = (modo or "editar") != "foto"
+    if not editando:
+        fecha_sel = ""
+        horario_sel = ""
+        rol_sel = ""
+        q = ""
+    busqueda = _buscar_personas(db, q) if editando else []
+    ids_mios = {t.persona_id for t in db.query(Turno).filter(Turno.delegacion == "sonido").all()}
+    mis_cols = db.query(Persona).filter(Persona.id.in_(ids_mios)).all() if ids_mios else []
+    cerrados = db.query(Turno).filter(Turno.delegacion == "sonido", Turno.semana_lunes < lunes).all()
+    score_hora, score_anio = _scores(cerrados, lunes.year, fecha_sel, horario_sel)
+    mis_cols.sort(key=lambda p: (-score_hora.get(p.id, 0), -score_anio.get(p.id, 0), (p.nombre or "").lower()))
+    alertas = db.query(Alerta).filter(Alerta.para_delegacion == "sonido", Alerta.leida == False).order_by(Alerta.id.desc()).all()
+    ausencias = db.query(AusenciaSemana).filter(
+        AusenciaSemana.labor == "sonido", AusenciaSemana.semana_lunes == lunes,
+    ).all()
+    no_pueden = [personas_map.get(a.persona_id) or db.query(Persona).filter(Persona.id == a.persona_id).first() for a in ausencias]
+    no_pueden = [p for p in no_pueden if p]
+    posts = db.query(Postulacion).filter(Postulacion.labor == "sonido", Postulacion.semana_lunes == lunes).all()
+    if posts and not personas_map:
+        personas_map = {p.id: p for p in db.query(Persona).filter(Persona.id.in_({x.persona_id for x in posts})).all()}
+    por_cupo = {}
+    for p in posts:
+        por_cupo.setdefault((p.fecha, p.horario, p.rol), []).append(personas_map.get(p.persona_id))
+    postulados = []
+    for clave, gente in por_cupo.items():
+        fecha, horario, rol = clave
+        nombres = [g for g in gente if g]
+        nombres.sort(key=lambda g: (g.nombre or "").lower())
+        asignado = ocupado.get((fecha, horario, rol))
+        asignado_nom = personas_map.get(asignado.persona_id).nombre if asignado and personas_map.get(asignado.persona_id) else ""
+        postulados.append({
+            "fecha": fecha, "horario": horario, "rol": rol,
+            "etiqueta": f"{NOMBRES_DIA[fecha.weekday()]} {fecha.day:02d} · {etiqueta_horario(horario)} · {'Cámara' if rol == 'camara' else 'Sonido'}",
+            "gente": nombres,
+            "lleno": (fecha, horario, rol) in ocupado,
+            "asignado": asignado_nom,
+        })
+    postulados.sort(key=lambda x: (x["fecha"], x["horario"], x["rol"]))
+    _rank, puesto = ranking_anio(db)
+    return {
+        "user": user, "alertas": alertas,
+        "lunes": lunes, "domingo": dias[-1], "filas": filas,
+        "q": q, "busqueda": busqueda, "mis_cols": mis_cols, "puesto": puesto,
+        "fecha_sel": fecha_sel, "horario_sel": horario_sel, "rol_sel": rol_sel,
+        "modo": "foto" if not editando else "editar",
+        "error": error, "ok": ok,
+        "busqueda_vacia": bool(q.strip()) and not busqueda,
+        "no_pueden": no_pueden, "postulados": postulados,
+    }
+
+
 def vista_delegacion(request, db, user, delg, q, horario_sel, fecha_sel, modo, error, ok, confirmar, hl):
     generar_alertas_festivo(db)
     generar_alertas_domingo(db)

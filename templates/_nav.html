@@ -1,17 +1,19 @@
 {% set delg = request.session.get('delegacion', 'comunicaciones') %}
 {% set es_com = delg == 'comunicaciones' %}
 {% set es_sonido = delg == 'sonido' %}
+{% set es_banos = delg == 'banos' %}
+{% set es_templo = es_sonido or es_banos %}
 <header class="site-header">
     <div class="header-inner">
         <div class="brand">
             <a href="/dashboard" class="brand-name"><img src="/static/img/logo/lockup-merged-header-dark.svg" alt="Sintonía" class="brand-logo"></a>
-            <p class="brand-sub">{{ delg|replace('_',' ')|capitalize }}</p>
+            <p class="brand-sub">{% if delg == 'banos' %}Baños{% else %}{{ delg|replace('_',' ')|capitalize }}{% endif %}</p>
         </div>
 
         <nav class="nav-primary" aria-label="Principal">
             <a href="/dashboard" class="nav-link {% if activo == 'inicio' %}is-active{% endif %}">Inicio</a>
             <a href="/programacion" class="nav-link {% if activo == 'programacion' %}is-active{% endif %}">Programación</a>
-            {% if es_sonido %}
+            {% if es_templo %}
             <a href="/postulaciones" class="nav-link {% if activo == 'postulaciones' %}is-active{% endif %}">Postulaciones</a>
             {% endif %}
             {% if es_com %}
@@ -45,7 +47,7 @@
         <span class="bottom-ico">📅</span>
         <span>Programación</span>
     </a>
-    {% if es_sonido %}
+    {% if es_templo %}
     <a href="/postulaciones" class="bottom-item {% if activo == 'postulaciones' %}is-active{% endif %}">
         <span class="bottom-ico">✋</span>
         <span>Postulaciones</span>

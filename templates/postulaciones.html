@@ -64,7 +64,7 @@
                     <p class="text-sm font-medium">{{ grupo.etiqueta }}</p>
                     <div class="flex flex-wrap gap-2 mt-1">
                         {% for p in grupo.gente %}
-                        <form method="post" action="/programacion/sonido/asignar" class="js-confirmar" data-persona="{{ p.id }}" data-nombre="{{ p.nombre }}" data-turnos="{{ p.turnos }}" data-comparar="{{ 1 if p.mostrar_carga else 0 }}">
+                        <form method="post" action="{{ accion_confirmar }}" class="js-confirmar" data-persona="{{ p.id }}" data-nombre="{{ p.nombre }}" data-turnos="{{ p.turnos }}" data-comparar="{{ 1 if p.mostrar_carga else 0 }}">
                             <input type="hidden" name="modo" value="editar">
                             <input type="hidden" name="origen" value="postulaciones">
                             <input type="hidden" name="ajax" value="1">
@@ -106,7 +106,7 @@
         <section class="bg-white rounded-xl shadow p-5 mb-4">
             <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
                 <div>
-                    <p class="font-medium">Equipo de Sonido</p>
+                    <p class="font-medium">Equipo de {{ nombre_equipo }}</p>
                     <p class="text-sm" style="color:var(--muted)">Quien diligencia el enlace entra solo. Agregar es para quien no está. Buscar encuentra a alguien del equipo.</p>
                 </div>
                 <p class="text-2xl font-semibold" id="totalEquipo">{{ miembros|length }} <span class="text-sm font-normal" style="color:var(--muted)">en el equipo</span></p>

@@ -66,19 +66,30 @@ def enlace_fallo(request) -> str | None:
     return None
 
 
-PLANTILLA_BASE = (
-    "Hola, equipo de Sonido.\n"
-    "Para esta semana pueden postularse en este enlace:\n"
-    "{enlace}\n\n"
-    "Clave: {clave}\n\n"
-    "Entran, escriben su celular dos veces y marcan los horarios en los que pueden. "
-    "Si esta semana no pueden apoyar, también lo indican ahí."
-)
+def plantilla_base(labor: str) -> str:
+    nombre = "Baños" if labor == "banos" else "Sonido"
+    return (
+        f"Hola, equipo de {nombre}.\n"
+        "Para esta semana pueden postularse en este enlace:\n"
+        "{enlace}\n\n"
+        "Clave: {clave}\n\n"
+        "Entran, escriben su celular dos veces y marcan los horarios en los que pueden. "
+        "Si esta semana no pueden apoyar, también lo indican ahí."
+    )
 
 
 def texto_plantilla(row: ClaveEnlace, enlace: str) -> str:
-    base = (row.plantilla or "").strip() or PLANTILLA_BASE
-    return base.replace("{enlace}", enlace).replace("{clave}", row.clave)
+    labor = row.labor or "sonido"
+    guardada = (row.plantilla or "").strip()
+    cruzada = False
+    if guardada:
+        if labor == "banos":
+            cruzada = "/postular/" in guardada.replace("/postular-banos/", "") or "equipo de Sonido" in guardada
+        else:
+            cruzada = "/postular-banos/" in guardada or "equipo de Baños" in guardada
+    if not guardada or cruzada:
+        guardada = plantilla_base(labor)
+    return guardada.replace("{enlace}", enlace).replace("{clave}", row.clave)
 
 
 def guardar_plantilla(db: Session, texto: str, enlace: str, labor: str = "sonido") -> ClaveEnlace:
@@ -175,7 +186,7 @@ def postulaciones_persona(db: Session, persona_id: int, lunes: date, labor: str 
 
 
 def asegurar_equipo(db: Session, persona_id: int, hoy: date | None = None):
-    """Entra a la lista. Si estaba dado de baja, vuelve a contar desde hoy."""
+    """Entra a la lista de Sonido. Si estaba dado de baja, vuelve a contar desde hoy."""
     from .models import EquipoSonido
     hoy = hoy or hoy_colombia()
     row = db.query(EquipoSonido).filter(EquipoSonido.persona_id == persona_id).first()
@@ -189,8 +200,23 @@ def asegurar_equipo(db: Session, persona_id: int, hoy: date | None = None):
     return row
 
 
+def asegurar_equipo_banos(db: Session, persona_id: int, hoy: date | None = None):
+    """Entra a la lista de Baños. No toca el equipo de Sonido."""
+    from .models import EquipoBanos
+    hoy = hoy or hoy_colombia()
+    row = db.query(EquipoBanos).filter(EquipoBanos.persona_id == persona_id).first()
+    if row:
+        if not row.activo:
+            row.activo = True
+            row.desde = hoy
+        return row
+    row = EquipoBanos(persona_id=persona_id, desde=hoy, activo=True)
+    db.add(row)
+    return row
+
+
 def sembrar_equipo(db: Session) -> None:
-    """Quien ya diligenció el enlace entra a la lista. El conteo empieza hoy."""
+    """Quien ya diligenció el enlace de Sonido entra a la lista. El conteo empieza hoy."""
     from .models import AusenciaSemana, EquipoSonido, Postulacion
     hoy = hoy_colombia()
     ids = {p.persona_id for p in db.query(Postulacion.persona_id).filter(Postulacion.labor == "sonido").all()}
@@ -198,6 +224,19 @@ def sembrar_equipo(db: Session) -> None:
     ya = {r.persona_id for r in db.query(EquipoSonido.persona_id).all()}
     for pid in ids - ya:
         db.add(EquipoSonido(persona_id=pid, desde=hoy, activo=True))
+    if ids - ya:
+        db.commit()
+
+
+def sembrar_equipo_banos(db: Session) -> None:
+    """Quien ya diligenció el enlace de Baños entra a su lista. No toca Sonido."""
+    from .models import AusenciaSemana, EquipoBanos, Postulacion
+    hoy = hoy_colombia()
+    ids = {p.persona_id for p in db.query(Postulacion.persona_id).filter(Postulacion.labor == "banos").all()}
+    ids |= {a.persona_id for a in db.query(AusenciaSemana.persona_id).filter(AusenciaSemana.labor == "banos").all()}
+    ya = {r.persona_id for r in db.query(EquipoBanos.persona_id).all()}
+    for pid in ids - ya:
+        db.add(EquipoBanos(persona_id=pid, desde=hoy, activo=True))
     if ids - ya:
         db.commit()
 

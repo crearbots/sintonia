@@ -18,7 +18,7 @@
                 {% for a in alertas %}
                 {% if a.vista %}
                 <div class="alerta-card">
-                    <p class="font-medium">{{ a.vista.nombre }} pidió cambiar su postulación</p>
+                    <p class="font-medium">{{ a.vista.nombre }} pidió cambiar su postulación de {{ a.vista.labor }}</p>
                     <p class="text-sm font-medium mt-2">Antes</p>
                     <ul class="text-sm space-y-1 mb-2">{% for linea in a.vista.antes %}<li>{{ linea }}</li>{% endfor %}</ul>
                     <p class="text-sm font-medium">Ahora</p>
@@ -27,7 +27,7 @@
                     {% else %}
                     <ul class="text-sm space-y-1 mb-2">{% for linea in a.vista.ahora %}<li>{{ linea }}</li>{% endfor %}</ul>
                     {% endif %}
-                    <form method="post" action="/programacion/sonido/cambio" class="flex gap-2">
+                    <form method="post" action="{{ a.vista.accion }}" class="flex gap-2">
                         <input type="hidden" name="cambio_id" value="{{ a.vista.id }}">
                         <button name="decision" value="aceptar" class="btn-primary text-sm">Aceptar</button>
                         <button name="decision" value="rechazar" class="btn-ghost text-sm">Rechazar</button>
