@@ -6,6 +6,8 @@ infomira_censo.db
 *.xls
 
 # Entorno
+.env
+.env.local
 env/
 venv/
 .venv/
