@@ -25,6 +25,9 @@ DELEGACIONES = (
     "banos",
 )
 
+# Equipos con grilla propia; no aparecen en la programación del punto de información.
+DELEGACIONES_EQUIPOS = ("sonido", "banos")
+
 COM_ONLY_PREFIXES = (
     "/upload",
     "/personas",

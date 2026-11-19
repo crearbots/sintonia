@@ -22,6 +22,30 @@ def semana_vigente(hoy: date | None = None) -> date:
     return lunes_de(hoy)
 
 
+def semana_vigente_banos(hoy: date | None = None) -> date:
+    """Baños: desde el viernes se arma la semana siguiente (Sonido sigue en sábado)."""
+    hoy = hoy or hoy_colombia()
+    if hoy.weekday() >= 4:
+        return lunes_de(hoy + timedelta(days=7))
+    return lunes_de(hoy)
+
+
+def semana_para_labor(labor: str, hoy: date | None = None) -> date:
+    """Semana vigente del enlace de postulación según el equipo (sonido / baños)."""
+    if labor == "banos":
+        return semana_vigente_banos(hoy)
+    return semana_vigente(hoy)
+
+
+def postulacion_tarde() -> bool:
+    """Domingo 14:00 o después (Bogotá): aviso en el formulario de postulación."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    ahora = datetime.now(ZoneInfo("America/Bogota"))
+    return ahora.weekday() == 6 and ahora.hour >= 14
+
+
 def dias_semana(lunes: date) -> list[date]:
     return [lunes + timedelta(days=i) for i in range(7)]
 

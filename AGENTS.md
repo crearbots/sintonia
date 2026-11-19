@@ -80,12 +80,14 @@ app/
   festivos.py          # festivos de Colombia
   csrf.py              # middleware CSRF
   services/
-    programacion.py    # armado de vistas de grilla (punto, sonido, baños)
+    programacion.py        # armado de vistas de grilla (punto, sonido, baños)
+    enlace_postulacion.py  # GET/POST del enlace público (Sonido y Baños)
   routes/
     auth.py            # login / logout
     censo.py           # dashboard, personas, cargas, informe
-    programacion.py    # punto de información + operaciones de Baños en sesión
-    sonido.py          # formulario público, panel Sonido y Baños
+    programacion.py    # punto de información + grilla/asignar Baños en sesión
+    postulacion.py     # enlace público /postular-banos/{token}
+    sonido.py          # enlace público /postular/{token}, panel Sonido y Baños
     usuarios.py        # gestión de usuarios (solo comunicaciones)
 templates/             # pantallas Jinja2
 static/                # css, js, logo
@@ -129,7 +131,7 @@ Si ya está como `Instalada`, un listado posterior no la puede pasar a `No insta
 
 ## Reglas de programación (punto y calendario)
 
-- Semana vigente: lunes a domingo. Sábado o domingo se edita la semana siguiente.
+- Semana vigente: lunes a domingo. Sábado o domingo se edita la semana siguiente (punto y Sonido). **Baños:** desde el viernes (`semana_para_labor("banos")` en `punto.py`). Enlaces: `enlace_valido`, `url_enlace_postulacion` en `postulacion.py`.
 - Horarios **de referencia**: Lun–Vie 7:00 y 18:00, Sáb 17:00, Dom 8:00 y 11:00. La grilla real depende de **config del punto** (vigencia, días habilitados Lun–Sáb, domingos manuales, festivos Colombia).
 - Festivo entre semana: 8:00 y 17:00. El día se marca como festivo.
 - En el punto, un colaborador máximo **2 veces por semana** (FIMLM exento).

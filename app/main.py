@@ -150,6 +150,7 @@ def on_startup():
 
 from .routes.auth import router as auth_router
 from .routes.censo import router as censo_router
+from .routes.postulacion import router as postulacion_router
 from .routes.programacion import router as programacion_router
 from .routes.sonido import router as sonido_router
 from .routes.usuarios import router as usuarios_router
@@ -157,5 +158,6 @@ from .routes.usuarios import router as usuarios_router
 app.include_router(auth_router)
 app.include_router(censo_router)
 app.include_router(programacion_router)
+app.include_router(postulacion_router)
 app.include_router(sonido_router)
 app.include_router(usuarios_router)

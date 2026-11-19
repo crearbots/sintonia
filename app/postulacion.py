@@ -140,6 +140,24 @@ def clave_valida(db: Session, clave: str, labor: str = "sonido") -> bool:
     return (clave or "").strip() == row.clave
 
 
+LABORES_ENLACE = frozenset({"sonido", "banos"})
+
+
+def enlace_valido(db: Session, token: str, labor: str) -> ClaveEnlace | None:
+    """Token del mes para la labor; None si no coincide."""
+    if labor not in LABORES_ENLACE:
+        return None
+    row = clave_vigente(db, labor)
+    if row.token != token:
+        return None
+    return row
+
+
+def url_enlace_postulacion(base_url: str, labor: str, token: str) -> str:
+    path = "/postular-banos" if labor == "banos" else "/postular"
+    return f"{base_url.rstrip('/')}{path}/{token}"
+
+
 def marcar_postulacion(
     db: Session, persona_id: int, fecha: date, horario: str, rol: str, labor: str = "sonido",
 ) -> Postulacion:

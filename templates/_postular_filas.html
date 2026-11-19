@@ -1,0 +1,28 @@
+{% for f in filas %}
+<div class="dia">
+    <button type="button" class="w-full flex justify-between items-center font-medium abrir">
+        <span>{{ f.dia }} {{ f.fecha }}{% if f.festivo %} · festivo{% endif %}</span>
+        <span class="text-sm">{% if f.libre %}<span style="color:#d97706;font-weight:700">Libre</span>{% endif %} <span class="cuenta" style="color:var(--muted)"></span></span>
+    </button>
+    <div class="cuerpo">
+        {% if tiene_rol %}
+        {% for s in f.slots %}
+        <p class="text-sm mb-2" style="color:var(--muted)">{{ s.etiqueta }}</p>
+        {% for c in s.roles %}
+        <label class="hueco mb-2">
+            <input type="checkbox" name="hueco" value="{{ c.valor }}" data-texto="{{ f.dia }} {{ f.fecha }} · {{ s.etiqueta }} · {{ c.rol_txt }}" {% if c.marcado %}checked{% endif %}>
+            <span>{{ c.rol_txt }}{% if c.libre %} · <span style="color:#d97706;font-weight:600">Libre</span>{% endif %}</span>
+        </label>
+        {% endfor %}
+        {% endfor %}
+        {% else %}
+        {% for s in f.slots %}
+        <label class="hueco mb-2">
+            <input type="checkbox" name="hueco" value="{{ s.valor }}" data-texto="{{ f.dia }} {{ f.fecha }} · {{ s.etiqueta }}" {% if s.marcado %}checked{% endif %}>
+            <span>{{ s.etiqueta }}{% if s.libre %} · <span style="color:#d97706;font-weight:600">Libre</span>{% endif %}</span>
+        </label>
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
